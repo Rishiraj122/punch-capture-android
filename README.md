@@ -1,10 +1,13 @@
-# Punch Capture (Android)
+# MobileVision.Ai (Android)
+
+Start screen: Punch (active), Harrier and Safari (coming soon). Punch opens **Punch Capture**.
+
 
 Offline photo capture for variant-wise checkpoint data collection. Runs on the Zebra; no laptop or network needed.
 
 ## Install / update on the Zebra
 1. Open this repo's **Releases** page in the Zebra's browser (sign in to GitHub if the repo is private).
-2. Download the newest `PunchCapture-v1.0.N.apk` and open it. Allow "Install unknown apps" for the browser if asked.
+2. Download the newest `MobileVision-v1.0.N.apk` and open it. Allow "Install unknown apps" for the browser if asked.
 3. First launch: tap **Open settings** and turn on **Allow access to manage all files**.
 
 New versions install over the old one. Photos are never touched by an update.

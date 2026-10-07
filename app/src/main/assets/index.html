@@ -3,164 +3,255 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#14181d">
-<title>Punch Capture</title>
+<title>MobileVision.Ai</title>
 <style>
-/* Layout: phone-first, three screens (variants → vehicle checklist → setup); system fonts so it works with no internet */
+/* Layout: phone-first app shell. Light blue-grey ground, white rounded cards, one strong blue for actions.
+   Car photos always sit on light tiles (mix-blend multiply removes their white backdrop). System fonts only (offline). */
 :root{
-  --bg:#f0f2f4; --panel:#ffffff; --fg:#15191e; --muted:#5d6874; --line:#d5dbe1;
-  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300; --s7:#4a3aa7; --s8:#e34948; --sx:#9a9893;
-  --accent:#0a6ebd; --accent-ink:#ffffff; --done:#1e8a4b; --done-soft:#e1f3e8; --warn:#c8322b; --chip:#e6eaee;
+  --bg:#f2f5fa; --card:#ffffff; --card-2:#f6f8fc; --fg:#0f1b2d; --muted:#667385; --line:#e2e8f0;
+  --primary:#1769e8; --primary-ink:#ffffff; --primary-soft:#e7f0ff;
+  --ok:#1f9d55; --ok-soft:#e5f6ec; --warn:#f29a0e; --bad:#d93a32; --bad-soft:#fdeceb;
+  --tile:#eef2f8; --hero-a:#e3eeff; --hero-b:#f6f9ff;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300; --s7:#4a3aa7; --s8:#e34948; --sx:#a3a29d;
+  --shadow:0 1px 2px rgba(15,27,45,.06), 0 4px 14px rgba(15,27,45,.05);
   --f-ui:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-  --f-num:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --f-num:ui-monospace,"SF Mono","Roboto Mono",Menlo,Consolas,monospace;
+  --r:16px;
   color-scheme:light;
 }
 @media (prefers-color-scheme:dark){:root{
-  --bg:#111418; --panel:#1a1f25; --fg:#e7ebef; --muted:#94a0ac; --line:#2b333c;
+  --bg:#0c1220; --card:#151d2c; --card-2:#1b2536; --fg:#e8eef6; --muted:#97a3b4; --line:#253145;
+  --primary:#3d8bff; --primary-ink:#04101f; --primary-soft:#14284a;
+  --ok:#38c172; --ok-soft:#12291d; --warn:#f5a524; --bad:#ef5b52; --bad-soft:#2e1513;
+  --tile:#e9eef5; --hero-a:#dce8fb; --hero-b:#eef3fb;
   --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767; --sx:#6b6a66;
-  --accent:#3d9be6; --accent-ink:#06121c; --done:#38b06b; --done-soft:#14281c; --warn:#e5584f; --chip:#232a32;
+  --shadow:0 1px 2px rgba(0,0,0,.35);
   color-scheme:dark}}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.4 var(--f-ui);-webkit-tap-highlight-color:transparent}
-.wrap{max-width:560px;margin:0 auto;padding-inline:16px;padding-block:12px 120px}
-header.top{position:sticky;top:0;z-index:5;background:var(--bg);padding:calc(env(safe-area-inset-top,0px) + 10px) 0 10px;
-  display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);margin-bottom:12px}
-header.top h1{font-size:1.1rem;margin:0;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.veh{font:700 .95rem var(--f-num);color:var(--accent)}
-button{font:inherit;cursor:pointer}
-.icon-btn{border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:10px;padding:8px 12px;font-size:.9rem}
-.btn{border:0;border-radius:12px;padding:14px 16px;font-weight:650;font-size:1rem}
-.btn.primary{background:var(--accent);color:var(--accent-ink)}
-.btn.ghost{background:var(--panel);color:var(--fg);border:1px solid var(--line)}
-.btn.danger{background:transparent;color:var(--warn);border:1px solid var(--warn)}
-:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
-.label{font-size:.72rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin:18px 0 8px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px}
-.variants{display:flex;flex-direction:column;gap:10px}
-.variant h2{margin:0;font-size:1.1rem}
-.meta{font-size:.85rem;color:var(--muted)}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font:16px/1.4 var(--f-ui);-webkit-tap-highlight-color:transparent}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer}
+.wrap{max-width:560px;margin:0 auto;padding-inline:16px;padding-block:0 130px}
+:focus-visible{outline:3px solid var(--primary);outline-offset:2px}
+svg.i{width:22px;height:22px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+svg.i.sm{width:18px;height:18px} svg.i.lg{width:26px;height:26px}
+svg.i.fill{fill:currentColor;stroke:none}
+
+/* header */
+header.top{position:sticky;top:0;z-index:5;background:var(--bg);padding:calc(env(safe-area-inset-top,0px) + 12px) 0 12px;
+  display:flex;align-items:center;gap:8px}
+header.top h1{font-size:1.28rem;margin:0;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.01em}
+.ibtn{border:0;background:transparent;color:var(--fg);width:44px;height:44px;border-radius:12px;display:grid;place-items:center;flex:0 0 auto}
+.ibtn:active{background:var(--card-2)}
+.brand{font-size:1.7rem;font-weight:800;letter-spacing:-.02em;margin:0;line-height:1.1}
+.brand em{font-style:normal;color:var(--primary)}
+.subtitle{color:var(--muted);font-size:.9rem;margin:2px 0 0}
+
+/* cards & buttons */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px;box-shadow:var(--shadow)}
+.stack{display:flex;flex-direction:column;gap:12px}
+.btn{border:0;border-radius:12px;padding:13px 14px;font-weight:650;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px}
+.btn.primary{background:var(--primary);color:var(--primary-ink)}
+.btn.soft{background:var(--card-2);color:var(--fg);border:1px solid var(--line)}
+.btn.ghost{background:var(--card);color:var(--fg);border:1px solid var(--line)}
+.btn.danger{background:transparent;color:var(--bad);border:1px solid var(--bad)}
+.btn.block{width:100%}
+.btn.big{min-height:58px;font-size:1.06rem;border-radius:14px}
+.btn[disabled]{opacity:.45}
 .row-btns{display:flex;gap:8px;flex-wrap:wrap}
-.row-btns .btn{flex:1;min-width:130px;padding:12px}
-.tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:var(--chip);padding:4px;border-radius:12px}
-.tab{border:0;background:transparent;color:var(--muted);padding:10px;border-radius:9px;font-weight:650}
-.tab[aria-selected="true"]{background:var(--panel);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.12)}
-.tab .n{font-family:var(--f-num);font-size:.82rem;margin-left:4px}
-.progress{height:6px;border-radius:3px;background:var(--chip);overflow:hidden;margin:10px 0 4px}
-.progress i{display:block;height:100%;background:var(--done);transition:width .25s}
-.cps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
-.cp{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:grid;
-  grid-template-columns:1fr auto;gap:8px;align-items:center}
-.cp.done{border-color:var(--done);background:var(--done-soft)}
-.cp.next{border-color:var(--accent)}
-.cp-name{font-weight:600;min-width:0}
-.cp-file{font:.72rem var(--f-num);color:var(--muted);word-break:break-all}
-.shoot{border:0;background:var(--accent);color:var(--accent-ink);border-radius:10px;padding:10px 14px;font-weight:650;white-space:nowrap}
-.cp.done .shoot{background:var(--panel);color:var(--fg);border:1px solid var(--line)}
-.thumbs{grid-column:1/-1;display:flex;gap:6px;overflow-x:auto}
-.thumbs:empty{display:none}
-.thumbs button{border:0;padding:0;background:none;flex:0 0 auto}
-.thumbs img{width:64px;height:64px;object-fit:cover;border-radius:8px;display:block;border:1px solid var(--line)}
-.busy{grid-column:1/-1;font-size:.85rem;color:var(--accent)}
+.row-btns .btn{flex:1;min-width:130px;white-space:nowrap}
+.pill{border:0;background:var(--primary-soft);color:var(--primary);border-radius:999px;padding:7px 14px;font-weight:650;font-size:.9rem}
+.label{font-size:.74rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin:20px 2px 8px;font-weight:600}
+.label.blue{color:var(--primary)}
+.meta{font-size:.86rem;color:var(--muted)}
+.err{color:var(--bad);font-size:.9rem}
+.empty{color:var(--muted);padding:14px;font-size:.92rem}
+.mono{font-family:var(--f-num);font-size:.78rem;color:var(--muted);word-break:break-all}
+input[type=text],input[type=date],input[type=time],select{width:100%;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--card);min-height:48px}
+select.compact{width:auto;min-height:40px;padding:8px 12px;border-radius:999px;font-weight:600;font-size:.9rem;background:var(--card-2)}
+
+/* car tiles */
+.car{background:var(--tile);border-radius:12px;overflow:hidden;display:grid;place-items:center}
+.car img{width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply;display:block}
+.car.ph{color:var(--muted);background:var(--card-2)}
+
+/* launcher */
+.launch-head{padding:calc(env(safe-area-inset-top,0px) + 28px) 2px 18px}
+.model{display:grid;grid-template-columns:132px 1fr auto;gap:14px;align-items:center;width:100%;text-align:left;
+  background:var(--card);border:1px solid var(--line);border-radius:20px;padding:12px;box-shadow:var(--shadow)}
+.model .car{height:92px}
+.model h2{margin:0;font-size:1.3rem}
+.model[disabled]{opacity:.55;box-shadow:none}
+.model[disabled] .car{filter:grayscale(1)}
+.soon{display:inline-flex;align-items:center;gap:6px;font-size:.82rem;color:var(--muted);margin-top:4px}
+.go{width:40px;height:40px;border-radius:12px;background:var(--primary);color:var(--primary-ink);display:grid;place-items:center}
+
+/* punch home */
+.hero{border-radius:20px;background:linear-gradient(120deg,var(--hero-a),var(--hero-b));padding:16px 8px 8px 18px;display:flex;align-items:center;gap:8px;
+  overflow:hidden;min-height:136px;margin-bottom:14px}
+.hero-text{flex:0 0 auto;color:#0b1f3f}
+.hero-text b{display:block;font-size:.95rem;letter-spacing:.18em;color:#123f8c}
+.hero-text strong{display:block;font-size:1.9rem;letter-spacing:.32em;font-weight:900;line-height:1.1;color:#0b1f3f}
+.hero-text span{display:block;font-size:.78rem;color:#46597a;margin-top:6px}
+.hero .car{background:transparent;flex:1;min-width:0;height:120px}
+.vcard{display:flex;flex-direction:column;gap:12px}
+.vtop{display:grid;grid-template-columns:96px 1fr auto;gap:12px;align-items:center;border:0;background:none;text-align:left;padding:0;width:100%}
+.vtop .car{height:66px}
+.vname{font-weight:700;font-size:1.08rem}
+.vsub{font-size:.85rem;color:var(--muted)}
+.vstat{display:flex;gap:12px;font-size:.82rem;color:var(--muted);margin-top:3px;flex-wrap:wrap}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:0}
+.last{display:flex;align-items:center;gap:2px;color:var(--muted);font-size:.78rem;text-align:right}
+.last b{display:block;color:var(--fg);font-family:var(--f-num);font-size:.86rem}
+.zipcard{display:flex;align-items:center;gap:14px;width:100%;text-align:left;border:1px solid var(--line);border-radius:var(--r);
+  background:var(--ok-soft);padding:14px;margin-top:14px}
+.zipcard .ico{width:44px;height:44px;border-radius:12px;background:var(--ok);color:#fff;display:grid;place-items:center;flex:0 0 auto}
+.zipcard b{display:block;font-size:1.06rem}
+
+/* vehicle checklist */
+.vhead{display:flex;flex-direction:column;gap:10px}
+.vrow{display:flex;align-items:center;gap:12px}
+.vnum{font:800 1.9rem var(--f-num);letter-spacing:-.02em}
+.swatch{width:16px;height:16px;border-radius:50%;border:1px solid rgba(0,0,0,.18);flex:0 0 auto}
+.vcolor{display:flex;align-items:center;gap:8px;flex:1;min-width:0;font-weight:600}
+.bar{height:10px;background:var(--card-2);border-radius:999px;overflow:hidden;border:1px solid var(--line)}
+.bar i{display:block;height:100%;background:var(--primary);border-radius:999px;transition:width .25s}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0 4px}
+.seg button{display:flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--line);background:var(--card);border-radius:14px;
+  padding:12px;font-weight:650;min-height:52px}
+.seg button[aria-selected="true"]{background:var(--primary);color:var(--primary-ink);border-color:var(--primary)}
+.sechead{display:flex;align-items:baseline;justify-content:space-between;margin:16px 2px 8px}
+.sechead h2{margin:0;font-size:1.06rem}
+.sechead span{font-weight:800;font-size:1.06rem;color:var(--primary)}
+.cps{list-style:none;margin:0;padding:0;background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow)}
+.cp{display:grid;grid-template-columns:40px 1fr auto;gap:12px;align-items:center;padding:12px;border-top:1px solid var(--line);cursor:pointer}
+.cp:first-child{border-top:0}
+.cp.next{background:var(--primary-soft)}
+.st{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font:700 .95rem var(--f-num);border:2px solid var(--line);color:var(--muted)}
+.cp.done .st{background:var(--ok);border-color:var(--ok);color:#fff}
+.cp.next .st{background:var(--primary);border-color:var(--primary);color:var(--primary-ink)}
+.cp-name{font-weight:650;margin-bottom:6px;min-width:0}
+.thumbs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+.thumbs button,.thumbs .ph{flex:0 0 auto;width:52px;height:40px;border-radius:8px;border:0;padding:0;overflow:hidden;background:var(--card-2);display:grid;place-items:center;color:var(--muted)}
+.thumbs .ph{border:1px dashed var(--line)}
+.thumbs img{width:100%;height:100%;object-fit:cover;display:block}
+.cp-right{display:flex;align-items:center;gap:4px;color:var(--muted)}
+.count{min-width:30px;height:28px;border-radius:8px;background:var(--card-2);border:1px solid var(--line);display:grid;place-items:center;font:700 .85rem var(--f-num);color:var(--fg);padding:0 6px}
+.busy{grid-column:2/-1;font-size:.82rem;color:var(--primary)}
 .dock{position:fixed;left:0;right:0;bottom:0;background:var(--bg);border-top:1px solid var(--line);
   padding:10px 16px calc(env(safe-area-inset-bottom,0px) + 10px);z-index:6}
-.dock-in{max-width:560px;margin:0 auto;display:flex;gap:8px}
-.dock .btn{flex:1}
-.dock .btn.primary{flex:2}
-.viewer{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:20;display:flex;flex-direction:column;
+.dock-in{max-width:560px;margin:0 auto;display:flex;gap:10px}
+.dock .side{width:62px;min-width:62px;flex:0 0 auto;flex-direction:column;gap:2px;font-size:.7rem;padding:6px;min-height:62px}
+.dock .main{flex:1;min-height:62px;justify-content:space-between;text-align:left;padding:10px 16px}
+.dock .main b{display:block;font-size:1rem;line-height:1.2}
+.dock .main small{display:block;font-weight:500;opacity:.85;font-size:.8rem}
+
+/* viewer & sheets */
+.viewer{position:fixed;inset:0;background:rgba(5,9,18,.94);z-index:20;display:flex;flex-direction:column;
   padding:calc(env(safe-area-inset-top,0px) + 12px) 16px calc(env(safe-area-inset-bottom,0px) + 16px);gap:12px}
 .viewer img{flex:1;min-height:0;width:100%;object-fit:contain}
-.viewer .name{color:#e7ebef;font:.8rem var(--f-num);word-break:break-all}
-.viewer .row-btns .btn.ghost{background:#222;color:#fff;border-color:#444}
-.confirm{border:1px solid var(--warn);border-radius:12px;padding:12px;background:var(--panel);display:flex;flex-direction:column;gap:10px}
+.viewer .name{color:#e7ebef;font:.78rem var(--f-num);word-break:break-all}
+.viewer .btn.ghost{background:#1b2333;color:#fff;border-color:#334058}
+.confirm{border:1px solid var(--bad);border-radius:14px;padding:12px;background:var(--card);display:flex;flex-direction:column;gap:10px}
 .confirm p{margin:0}
-.viewer .confirm{background:#1a1f25;color:#e7ebef}
-input[type=text],select{width:100%;font:inherit;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--fg)}
-.add{display:flex;gap:8px}
-.add input{flex:1;min-width:0}
-.edit-list{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
-.edit-list li{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
-.edit-list li:last-child{border-bottom:0}
-.edit-list li span{flex:1;min-width:0}
-.edit-list .x{border:0;background:none;color:var(--warn);font-size:.9rem;padding:4px 6px}
-.empty{color:var(--muted);padding:12px;font-size:.9rem}
-.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 90px);
+.viewer .confirm{background:#151d2c;color:#e8eef6}
+.sheet-bg{position:fixed;inset:0;background:rgba(5,9,18,.5);z-index:25;display:flex;align-items:flex-end}
+.sheet{background:var(--card);width:100%;max-width:560px;margin:0 auto;border-radius:22px 22px 0 0;
+  padding:10px 16px calc(env(safe-area-inset-bottom,0px) + 18px);display:flex;flex-direction:column;gap:12px}
+.sheet::before{content:"";width:40px;height:4px;border-radius:4px;background:var(--line);align-self:center}
+.sheet h2{margin:0;font-size:1.12rem}
+.menu-item{display:flex;align-items:center;gap:14px;text-align:left;border:1px solid var(--line);background:var(--card-2);border-radius:14px;padding:14px}
+.menu-item .ico{width:42px;height:42px;border-radius:12px;background:var(--primary-soft);color:var(--primary);display:grid;place-items:center;flex:0 0 auto}
+.menu-item b{display:block}
+.menu-item span{font-size:.84rem;color:var(--muted)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 96px);
   background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:.9rem;z-index:30;max-width:90vw}
-.sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:25;display:flex;align-items:flex-end}
-.sheet{background:var(--panel);width:100%;max-width:560px;margin:0 auto;border-radius:18px 18px 0 0;
-  padding:18px 16px calc(env(safe-area-inset-bottom,0px) + 18px);display:flex;flex-direction:column;gap:12px}
-.sheet h2{margin:0;font-size:1.1rem}
-.edit-list .x.mv{color:var(--fg);font-size:1.05rem;padding:4px 8px;border:1px solid var(--line);border-radius:8px}
-.edit-list .x.edit{color:var(--accent)}
-.edit-list .x[disabled]{opacity:.3}
-.tag{color:var(--accent)}
-.icon-btn.menu{font-size:1.2rem;padding:6px 14px}
-.menu-sheet{gap:8px}
-.menu-item{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;border:1px solid var(--line);
-  background:var(--bg);color:var(--fg);border-radius:12px;padding:14px}
-.menu-item span{font-size:.85rem;color:var(--muted)}
+
+/* lists (settings) */
+.list{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:var(--r);background:var(--card);overflow:hidden}
+.list li{display:flex;align-items:center;gap:6px;padding:10px 12px;border-top:1px solid var(--line)}
+.list li:first-child{border-top:0}
+.list li>span{flex:1;min-width:0}
+.x{border:0;background:none;color:var(--bad);font-size:.9rem;padding:6px 8px;border-radius:8px;font-weight:600}
+.x.mv{color:var(--fg);border:1px solid var(--line);width:36px;height:36px;display:grid;place-items:center;padding:0}
+.x.edit{color:var(--primary)}
+.x[disabled]{opacity:.3}
+.tag{color:var(--primary);font-size:.76rem;font-weight:600}
+.add{display:flex;gap:8px;margin-top:8px}
+.add input{flex:1;min-width:0}
+
+/* photos browser */
 .crumbs{display:flex;flex-wrap:wrap;align-items:center;gap:2px;margin-bottom:12px}
-.crumb{border:0;background:none;color:var(--accent);font:600 .88rem var(--f-ui);padding:4px 2px;word-break:break-all;text-align:left}
+.crumb{border:0;background:none;color:var(--primary);font-weight:600;font-size:.88rem;padding:4px 2px;word-break:break-all;text-align:left}
 .crumb:last-of-type{color:var(--fg)}
 .crumb-sep{color:var(--muted)}
-.folders{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:12px;background:var(--panel);overflow:hidden}
-.folders li+li{border-top:1px solid var(--line)}
-.folders button{width:100%;display:flex;align-items:center;gap:12px;border:0;background:none;color:var(--fg);padding:14px 12px;text-align:left;font:inherit}
-.folder-ico{width:22px;height:16px;border-radius:3px;background:var(--accent);opacity:.85;flex:0 0 auto;position:relative}
-.folder-ico::before{content:"";position:absolute;left:0;top:-4px;width:10px;height:5px;border-radius:2px 2px 0 0;background:var(--accent)}
+.folders button{width:100%;display:flex;align-items:center;gap:12px;border:0;background:none;padding:14px 12px;text-align:left}
+.folders li{padding:0}
+.folder-ico{width:40px;height:40px;border-radius:10px;background:var(--primary-soft);color:var(--primary);display:grid;place-items:center;flex:0 0 auto}
 .folder-name{flex:1;min-width:0;word-break:break-all;font-weight:600}
-.folder-count{font:.85rem var(--f-num);color:var(--muted);font-variant-numeric:tabular-nums}
+.folder-count{font:.85rem var(--f-num);color:var(--muted)}
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
-.tile{border:0;padding:0;background:var(--chip);border-radius:8px;overflow:hidden;position:relative;aspect-ratio:1;max-width:100%}
+.tile{border:0;padding:0;background:var(--card-2);border-radius:10px;overflow:hidden;position:relative;aspect-ratio:1;max-width:100%}
 .tile img{width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity .2s}
 .tile img.ready{opacity:1}
-.tile-cap{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.55);color:#fff;font:.66rem var(--f-num);padding:3px 5px;text-align:left}
-.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
-.filters select,.filters input{flex:1;min-width:140px}
-.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
-.tile-stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px;min-width:0}
-.tile-stat span{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
-.tile-stat b{font:700 1.4rem var(--f-num);font-variant-numeric:tabular-nums}
-.chart{margin-bottom:12px}
-.chart h2{margin:0;font-size:1.02rem}
-.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.85rem;color:var(--muted)}
+.tile-cap{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.55);color:#fff;font:.64rem var(--f-num);padding:3px 5px;text-align:left}
+
+/* dashboard */
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+.tstat{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:12px;display:flex;flex-direction:column;gap:6px;min-width:0;box-shadow:var(--shadow)}
+.tstat .hd{display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--muted);font-weight:600}
+.tstat .hd .i{color:var(--primary)}
+.tstat.ok .hd .i{color:var(--ok)}
+.tstat b{font:800 1.6rem var(--f-num)}
+.chart h2{margin:0;font-size:1.06rem}
+.chart-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.84rem;color:var(--muted);margin:6px 0 10px}
 .legend span{display:inline-flex;align-items:center;gap:6px}
-.sw{display:inline-block;width:12px;height:12px;border-radius:3px;flex:0 0 auto}
-.hbars{display:flex;flex-direction:column;gap:6px}
-.hbar{display:grid;grid-template-columns:minmax(0,44%) 1fr auto;align-items:center;gap:10px;border:0;background:none;color:var(--fg);
-  padding:6px 0;font:inherit;text-align:left;width:100%}
-button.hbar{cursor:pointer}
-.hbar-label{font-size:.86rem;line-height:1.25;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word}
-.hbar-track{display:flex;gap:2px;height:16px;min-width:0}
+.sw{display:inline-block;width:12px;height:12px;border-radius:4px;flex:0 0 auto}
+.hbars{display:flex;flex-direction:column;gap:4px}
+.hbar{display:grid;grid-template-columns:minmax(0,44%) 1fr auto;align-items:center;gap:10px;border:0;background:none;padding:6px 0;text-align:left;width:100%}
+.hbar-label{font-size:.88rem;line-height:1.25;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word}
+.hbar-track{display:flex;gap:2px;height:12px;min-width:0;background:var(--card-2);border-radius:999px;overflow:hidden}
 .hbar-track i{display:block;height:100%;min-width:3px}
-.hbar-track i:last-child{border-radius:0 4px 4px 0}
-.hbar-val{font:600 .88rem var(--f-num);font-variant-numeric:tabular-nums;min-width:2ch;text-align:right}
-.hbar.zero .hbar-label{color:var(--warn)}
-.hbar.zero .hbar-val{color:var(--warn)}
-.pie-wrap{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
-.pie{width:150px;height:150px;max-width:100%;flex:0 0 auto}
-.pie path,.pie circle{stroke:var(--panel);stroke-width:2;stroke-linejoin:round}
-.pie-legend{list-style:none;margin:0;padding:0;flex:1;min-width:150px;display:flex;flex-direction:column;gap:6px}
-.pie-legend li{display:grid;grid-template-columns:auto 1fr auto auto;gap:8px;align-items:center;font-size:.9rem}
-.pie-legend b{font-family:var(--f-num);font-variant-numeric:tabular-nums}
-.pie-legend em{font-style:normal;color:var(--muted);font:.8rem var(--f-num);min-width:4ch;text-align:right}
-.s1{background:var(--s1);fill:var(--s1)} .s2{background:var(--s2);fill:var(--s2)} .s3{background:var(--s3);fill:var(--s3)}
-.s4{background:var(--s4);fill:var(--s4)} .s5{background:var(--s5);fill:var(--s5)} .s6{background:var(--s6);fill:var(--s6)}
-.s7{background:var(--s7);fill:var(--s7)} .s8{background:var(--s8);fill:var(--s8)} .sx{background:var(--sx);fill:var(--sx)}
-.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.hbar-track i:last-child{border-radius:0 999px 999px 0}
+.hbar-val{font:700 .88rem var(--f-num);min-width:2ch;text-align:right}
+.hbar.zero .hbar-label,.hbar.zero .hbar-val{color:var(--bad)}
+.donut-wrap{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.donut{width:150px;height:150px;flex:0 0 auto;max-width:100%}
+.donut text{fill:var(--fg)}
+.donut .sub{fill:var(--muted);font-size:11px}
+.donut-legend{list-style:none;margin:0;padding:0;flex:1;min-width:160px;display:flex;flex-direction:column;gap:10px}
+.donut-legend li{display:grid;grid-template-columns:auto 1fr auto auto;gap:10px;align-items:center;font-size:.92rem}
+.donut-legend b{font-family:var(--f-num)}
+.donut-legend em{font-style:normal;color:var(--muted);font:.8rem var(--f-num);min-width:4ch;text-align:right}
+.s1{background:var(--s1);stroke:var(--s1)} .s2{background:var(--s2);stroke:var(--s2)} .s3{background:var(--s3);stroke:var(--s3)}
+.s4{background:var(--s4);stroke:var(--s4)} .s5{background:var(--s5);stroke:var(--s5)} .s6{background:var(--s6);stroke:var(--s6)}
+.s7{background:var(--s7);stroke:var(--s7)} .s8{background:var(--s8);stroke:var(--s8)} .sx{background:var(--sx);stroke:var(--sx)}
+.ok-bg{background:var(--ok)} .warn-bg{background:var(--warn)} .pri-bg{background:var(--primary)}
+.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--card);margin-top:12px}
 .table-wrap table{width:100%;border-collapse:collapse;font-size:.88rem}
-.table-wrap th,.table-wrap td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+.table-wrap th,.table-wrap td{padding:9px 12px;text-align:right;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
 .table-wrap th:first-child,.table-wrap td:first-child{text-align:left}
-.table-wrap th{color:var(--muted);font-weight:600;font-size:.75rem;text-transform:uppercase;letter-spacing:.06em}
+.table-wrap th{color:var(--muted);font-weight:600;font-size:.74rem;text-transform:uppercase;letter-spacing:.06em}
 .table-wrap tr:last-child td{border-bottom:0}
-.btn.send{padding:11px 12px;font-size:.92rem}
-.edit-list.zips li{align-items:flex-start}
-.err{color:var(--warn);font-size:.9rem}
-.chips{display:flex;flex-wrap:wrap;gap:8px}
-.chip{border:1px solid var(--line);background:var(--chip);color:var(--fg);padding:9px 13px;border-radius:999px;font-weight:600;font-size:.92rem}
-.chip[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
-.colorbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;font-size:.95rem}
-.btn[disabled]{opacity:.5}
-input[type=date],input[type=time]{width:100%;font:inherit;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--fg)}
+
+/* zip */
+.range{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.rbox{border:1px solid var(--line);border-radius:14px;padding:10px;display:flex;flex-direction:column;gap:6px;background:var(--card-2);min-width:0}
+.rbox .meta{display:flex;align-items:center;gap:6px;font-weight:600}
+.rbox input{min-height:42px;padding:8px;background:var(--card)}
+.summary{display:flex;align-items:center;gap:14px;background:var(--primary-soft);border-radius:var(--r);padding:14px}
+.summary .ico{width:46px;height:46px;border-radius:12px;background:var(--card);color:var(--primary);display:grid;place-items:center;flex:0 0 auto}
+.summary b{display:block;font-size:1.08rem}
+.ready{background:var(--ok-soft);border:1px solid var(--ok);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:10px}
+.ready-head{display:flex;gap:12px;align-items:center}
+.ready-head .ico{width:42px;height:42px;border-radius:50%;background:var(--ok);color:#fff;display:grid;place-items:center;flex:0 0 auto}
+.ready-head b{display:block;color:var(--ok);font-size:1.1rem}
+.zips li{flex-direction:column;align-items:stretch}
+.zrow{display:flex;align-items:center;gap:12px;width:100%;border:0;background:none;text-align:left;padding:0}
+.zrow .ico{width:42px;height:42px;border-radius:10px;background:var(--primary-soft);color:var(--primary);display:grid;place-items:center;flex:0 0 auto}
+.zrow>div{flex:1;min-width:0}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -169,40 +260,74 @@ input[type=date],input[type=time]{width:100%;font:inherit;padding:12px;border-ra
 <div id="toast" class="toast" hidden></div>
 
 <script>
-const S = { cfg:null, screen:"home", variant:null, vehicle:null, section:"interior", progress:null,
+// ---------- icons ----------
+const ICONS = {
+  back:'<path d="M15 18l-6-6 6-6"/>', chev:'<path d="M9 6l6 6-6 6"/>', plus:'<path d="M12 5v14M5 12h14"/>',
+  play:'<path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/>', menu:'<path d="M4 6h16M4 12h16M4 18h16"/>',
+  gear:'<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
+  camera:'<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3.2"/>',
+  check:'<path d="M20 6 9 17l-5-5"/>', x:'<path d="M18 6 6 18M6 6l12 12"/>',
+  car:'<path d="M19 17h2v-4l-2.2-5.2A2 2 0 0 0 17 6.5H7a2 2 0 0 0-1.8 1.3L3 13v4h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M9 17h6M3 13h18"/>',
+  image:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m21 15-5-5L5 20"/>',
+  calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  file:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M10 12h1M10 15h1M10 18h1"/>',
+  share:'<path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M16 6l-4-4-4 4M12 2v13"/>',
+  bt:'<path d="m7 7 10 10-5 5V2l5 5L7 17"/>', folder:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  chart:'<path d="M3 3v18h18M7 16v-4M12 16V8M17 16v-7"/>', lock:'<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  up:'<path d="M12 19V5M5 12l7-7 7 7"/>', down:'<path d="M12 5v14M19 12l-7 7-7-7"/>', next:'<path d="M5 12h14M13 5l7 7-7 7"/>',
+  dots:'<circle cx="12" cy="5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="12" cy="19" r="1.2"/>',
+  zip:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 11v6M10 14l2 3 2-3"/>',
+};
+const ic = (n, cls="") => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n]}</svg>`;
+
+const S = { cfg:null, screen:"launch", variant:null, vehicle:null, section:"interior", progress:null,
             busy:null, viewer:null, confirm:null, lastOnDisk:{}, storage:null,
-            returnTo:"home", zip:null, sheet:null, menu:false, browse:null, stats:null };
+            returnTo:"home", zip:null, sheet:null, menu:false, browse:null, stats:null, homeStats:null };
 const $app = document.getElementById("app");
 const SECTIONS = ["interior","exterior"];
 
 const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const pad3 = n => String(n).padStart(3,"0");
+const two = n => String(n).padStart(2,"0");
 const V = () => S.cfg.variants.find(v => v.id === S.variant);
 const clone = o => JSON.parse(JSON.stringify(o));
 
-// Every call goes to the Android side (MainActivity.Bridge) and returns JSON.
 function nat(name, ...args){
-  if(!window.Native) throw new Error("Open this page inside the Punch Capture app.");
+  if(!window.Native) throw new Error("Open this page inside the MobileVision.Ai app.");
   const o = JSON.parse(window.Native[name](...args));
   if(o && o.error) throw new Error(o.error);
   return o;
 }
-
 let toastT;
 function toast(msg){ const t=document.getElementById("toast"); t.textContent=msg; t.hidden=false;
   clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true, 2400); }
 function buzz(p){ try{ navigator.vibrate && navigator.vibrate(p); }catch(e){} }
 
+// ---------- car pictures & color swatches ----------
+function carImg(variantName){
+  const n=(variantName||"").toLowerCase();
+  const f = n.includes("smart") ? "smart" : n.includes("plus") ? "pureplus" : n.includes("pure") ? "pure"
+          : n.includes("advent") ? "adventure" : n.includes("accomp") ? "accomplished" : "pure";
+  return `img/${f}.jpg`;
+}
+function carTile(variantName){ return `<div class="car"><img src="${carImg(variantName)}" alt=""></div>`; }
+const SWATCH = [["white","#f6f6f4"],["pristine","#f6f6f4"],["grey","#7d8591"],["gray","#7d8591"],["daytona","#7d8591"],["silver","#c3c8cf"],
+  ["blue","#1f6fd6"],["tornado","#1f6fd6"],["ocean","#1d5fa8"],["red","#d8322e"],["calypso","#d8322e"],["flame","#d8322e"],
+  ["orange","#f07a1a"],["atomic","#f07a1a"],["tropical","#f07a1a"],["black","#20232a"],["meteor","#3b3f46"],
+  ["green","#2f8f4e"],["yellow","#e8b400"],["brown","#8a5a36"],["bronze","#8a5a36"]];
+function swatchColor(name){
+  const n=(name||"").toLowerCase();
+  for(const [k,c] of SWATCH) if(n.includes(k)) return c;
+  return "var(--muted)";
+}
+
 // ---------- config model ----------
-// cfg = { colors:[{id,name}], common:{interior:[],exterior:[]}, variants:[{id,name,interior:[],exterior:[]}] }
-// Common edits flow to every variant; variant edits stay with that variant.
 function slug(t){
   const s = String(t).trim().replace(/[^A-Za-z0-9]+/g,"_").replace(/^_+|_+$/g,"");
   if(!s) throw new Error("Name must contain letters or numbers.");
   return s;
 }
 const itemId = t => slug(t).toLowerCase();
-
 function normalize(cfg){
   let changed=false;
   if(!cfg.common){
@@ -217,13 +342,10 @@ function normalize(cfg){
   cfg.variants.forEach(v => { if(v.colors){ delete v.colors; changed=true; } });
   return changed;
 }
-
 function commit(cfg){ S.cfg = nat("putConfig", JSON.stringify(cfg)); }
 function edit(fn){ const c=clone(S.cfg); fn(c); commit(c); }
 function findV(c, id){ return c.variants.find(v=>v.id===id); }
 function move(arr, i, d){ const j=i+d; if(j<0||j>=arr.length) return false; [arr[i],arr[j]]=[arr[j],arr[i]]; return true; }
-
-// Put the common checkpoints that a variant has into the common order, leaving its own extras where they are.
 function followCommonOrder(list, common){
   const rank={}; common.forEach((c,i)=>rank[c.id]=i);
   const slots=[], items=[];
@@ -231,21 +353,18 @@ function followCommonOrder(list, common){
   items.sort((a,b)=>rank[a.id]-rank[b.id]);
   slots.forEach((s,k)=>list[s]=items[k]);
 }
-
 const ops = {
   addColor(name){ edit(c=>{ const id=itemId(name);
     if(c.colors.some(x=>x.id===id)) throw new Error(`${name} is already in the color list.`);
     c.colors.push({id, name:name.trim()}); }); },
   removeColor(id){ edit(c=>{ c.colors=c.colors.filter(x=>x.id!==id); }); },
   moveColor(id,d){ edit(c=>{ move(c.colors, c.colors.findIndex(x=>x.id===id), d); }); },
-
   addVariant(name, from){ edit(c=>{ const id=slug(name);
     if(c.variants.some(v=>v.id.toLowerCase()===id.toLowerCase())) throw new Error(`Variant ${name} already exists.`);
     const src = from ? findV(c,from) : c.common;
     c.variants.push({id, name:name.trim(), interior:clone(src.interior), exterior:clone(src.exterior)}); }); },
   removeVariant(id){ edit(c=>{ c.variants=c.variants.filter(v=>v.id!==id); }); },
   moveVariant(id,d){ edit(c=>{ move(c.variants, c.variants.findIndex(v=>v.id===id), d); }); },
-
   addCommon(sec, name){ edit(c=>{ const id=itemId(name);
     if(c.common[sec].some(x=>x.id===id)) throw new Error(`${name} is already a common ${sec} checkpoint.`);
     const item={id, name:name.trim()};
@@ -257,7 +376,6 @@ const ops = {
   moveCommon(sec, id, d){ edit(c=>{
     if(!move(c.common[sec], c.common[sec].findIndex(x=>x.id===id), d)) return;
     c.variants.forEach(v=>followCommonOrder(v[sec], c.common[sec])); }); },
-
   addOwn(vid, sec, name){ edit(c=>{ const v=findV(c,vid), id=itemId(name);
     if(v[sec].some(x=>x.id===id)) throw new Error(`${name} is already in ${v.name} ${sec}.`);
     const fromCommon=c.common[sec].find(x=>x.id===id);
@@ -274,7 +392,6 @@ function loadConfig(){
 }
 function loadLastVehicles(){ S.lastOnDisk = nat("lastVehicles"); }
 function loadProgress(){ S.progress = nat("progress", S.variant, S.vehicle); }
-
 function counts(section){
   const v=V(), p=S.progress||{}; let done=0;
   v[section].forEach(c => { if(((p[section]||{})[c.id]||[]).length) done++; });
@@ -285,11 +402,14 @@ function nextPending(){
     for(const c of V()[s]) if(!((S.progress[s]||{})[c.id]||[]).length) return {section:s, cp:c};
   return null;
 }
+function pendingCount(){
+  let n=0; for(const s of SECTIONS) for(const c of V()[s]) if(!((S.progress[s]||{})[c.id]||[]).length) n++; return n;
+}
 
 // ---------- render ----------
 function render(){
   if(S.storage && !S.storage.granted) return renderPermission();
-  ({home:renderHome, vehicle:renderVehicle, setup:renderSetup, global:renderGlobal, zip:renderZip,
+  ({launch:renderLaunch, home:renderHome, vehicle:renderVehicle, setup:renderSetup, global:renderGlobal, zip:renderZip,
     browse:renderBrowse, stats:renderStats})[S.screen]();
   if(S.sheet) $app.insertAdjacentHTML("beforeend", sheetHTML());
   if(S.menu) $app.insertAdjacentHTML("beforeend", menuHTML());
@@ -297,78 +417,142 @@ function render(){
 
 function renderPermission(){
   $app.innerHTML = `
-    <header class="top"><h1>Punch Capture</h1></header>
-    <div class="card">
-      <h2 style="margin:0;font-size:1.1rem">Allow file access</h2>
-      <p style="margin:0">Photos are saved in a <b>PunchCapture</b> folder on this device, sorted by variant and checkpoint, so you can copy it to a laptop over USB.</p>
-      <p class="meta" style="margin:0">On the next screen, turn on <b>Allow access to manage all files</b> for Punch Capture, then come back.</p>
-      <button class="btn primary" data-act="grant">Open settings</button>
+    <div class="launch-head"><p class="brand">MobileVision<em>.Ai</em></p></div>
+    <div class="card stack">
+      <h2 style="margin:0;font-size:1.15rem">Allow file access</h2>
+      <p style="margin:0">Photos are saved in a <b>PunchCapture</b> folder on this device, sorted by variant, color and checkpoint, so you can copy it to a laptop.</p>
+      <p class="meta" style="margin:0">On the next screen, turn on <b>Allow access to manage all files</b>, then come back.</p>
+      <button class="btn primary block" data-act="grant">Open settings</button>
     </div>`;
 }
 
+function renderLaunch(){
+  const pv = S.cfg.variants.length;
+  $app.innerHTML = `
+    <div class="launch-head">
+      <p class="brand">MobileVision<em>.Ai</em></p>
+      <p class="subtitle">Vision data collection for Tata Motors vehicles</p>
+    </div>
+    <div class="stack">
+      <button class="model" data-act="openPunch">
+        <div class="car"><img src="img/adventure.jpg" alt=""></div>
+        <div><h2>Punch</h2><div class="meta">${pv} variant${pv===1?"":"s"} · tap to start</div></div>
+        <span class="go">${ic("chev")}</span>
+      </button>
+      <button class="model" disabled aria-disabled="true">
+        <div class="car ph">${ic("car","lg")}</div>
+        <div><h2>Harrier</h2><span class="soon">${ic("lock","sm")}Coming soon</span></div><span></span>
+      </button>
+      <button class="model" disabled aria-disabled="true">
+        <div class="car ph">${ic("car","lg")}</div>
+        <div><h2>Safari</h2><span class="soon">${ic("lock","sm")}Coming soon</span></div><span></span>
+      </button>
+    </div>
+    <p class="meta" style="margin-top:24px">v${esc(S.storage ? S.storage.version : "")} · works offline · photos stay on this device</p>`;
+}
+
+function variantStatus(){
+  // complete / partial vehicles per variant, all time
+  const out={};
+  try{
+    const raw = nat("stats").photos, veh={};
+    raw.forEach(p=>{ if(!p.n) return; const k=p.v+"|"+p.n; (veh[k]=veh[k]||{v:p.v, cps:new Set()}).cps.add(p.s+"/"+p.c); });
+    S.cfg.variants.forEach(v=>{
+      const need=SECTIONS.flatMap(s=>v[s].map(c=>s+"/"+c.id));
+      const vs=Object.values(veh).filter(x=>x.v===v.id);
+      const complete=vs.filter(x=>need.length && need.every(k=>x.cps.has(k))).length;
+      out[v.id]={complete, partial:vs.length-complete};
+    });
+  }catch(e){}
+  return out;
+}
+
 function renderHome(){
+  const st = S.homeStats || {};
   const items = S.cfg.variants.map(v => {
-    const last = S.lastOnDisk[v.id] || 0;
-    return `<div class="card variant">
-      <div><h2>${esc(v.name)}</h2>
-      <div class="meta">${v.interior.length} interior · ${v.exterior.length} exterior · ${last ? "last vehicle V"+pad3(last) : "no photos yet"}</div></div>
+    const last = S.lastOnDisk[v.id] || 0, s = st[v.id] || {complete:0, partial:0};
+    return `<div class="card vcard">
+      <button class="vtop" data-act="statVariantFromHome" data-id="${v.id}" aria-label="${esc(v.name)} dashboard">
+        ${carTile(v.name)}
+        <div style="min-width:0"><div class="vname">${esc(v.name)}</div>
+          <div class="vsub">${v.interior.length} Interior · ${v.exterior.length} Exterior</div>
+          ${last ? `<div class="vstat"><span><i class="dot ok-bg"></i>${s.complete} complete</span><span><i class="dot warn-bg"></i>${s.partial} partial</span></div>`
+                 : `<div class="vstat">No photos yet</div>`}</div>
+        <div class="last">${last ? `<div>Last<b>V${pad3(last)}</b></div>` : ""}${ic("chev","sm")}</div>
+      </button>
       <div class="row-btns">
-        <button class="btn primary" data-act="new" data-v="${v.id}">New vehicle</button>
-        ${last ? `<button class="btn ghost" data-act="resume" data-v="${v.id}" data-n="${last}">Continue V${pad3(last)}</button>` : ""}
+        <button class="btn primary" data-act="new" data-v="${v.id}">${ic("plus","sm")}New vehicle</button>
+        ${last ? `<button class="btn soft" data-act="resume" data-v="${v.id}" data-n="${last}">${ic("play","sm")}Continue V${pad3(last)}</button>` : ""}
       </div></div>`;
   }).join("");
   $app.innerHTML = `
-    <header class="top"><h1>Punch Capture</h1>
-      <button class="icon-btn menu" data-act="menu" aria-label="Menu">☰</button></header>
-    <div class="variants">${items || `<div class="empty">No variants yet. Add one from ☰ → Settings.</div>`}</div>
-    <p class="label">Export</p>
-    <div class="card">
-      <div><h2 style="margin:0;font-size:1.05rem">Zip photos</h2>
-      <div class="meta">Pick a date and time range, then send it by Bluetooth or copy it over USB from Download/PunchCapture_Zips.</div></div>
-      <button class="btn primary" data-act="openZip">Zip photos…</button>
+    <header class="top">
+      <button class="ibtn" data-act="launch" aria-label="Back to vehicles">${ic("back")}</button>
+      <div style="flex:1;min-width:0"><p class="brand" style="font-size:1.45rem">Punch <em>Capture</em></p><p class="subtitle" style="font-size:.82rem">Data collection for Tata Punch</p></div>
+      <button class="ibtn" data-act="menu" aria-label="Menu">${ic("menu")}</button>
+    </header>
+    <div class="hero">
+      <div class="hero-text"><b>TATA</b><strong>PUNCH</strong><span>${S.cfg.variants.length} variants · ${S.cfg.common.interior.length + S.cfg.common.exterior.length} checkpoints</span></div>
+      <div class="car"><img src="img/accomplished.jpg" alt=""></div>
     </div>
-    <p class="meta" style="margin-top:16px">Saving to <span class="cp-file">${esc(S.storage ? S.storage.root : "")}</span><br>
-      Connect to a laptop with USB (File transfer) and copy the PunchCapture folder. · v${esc(S.storage ? S.storage.version : "")}</p>`;
+    <div class="stack">${items || `<div class="card empty">No variants yet. Add one from ☰ → Settings.</div>`}</div>
+    <button class="zipcard" data-act="openZip">
+      <span class="ico">${ic("zip")}</span>
+      <span style="flex:1"><b>Zip photos</b><span class="meta">Pick a date and time range, send by Bluetooth or USB</span></span>
+      ${ic("chev")}
+    </button>
+    <p class="meta" style="margin-top:16px">Saving to <span class="mono">${esc(S.storage ? S.storage.root : "")}</span></p>`;
 }
 
 function renderVehicle(){
   const v=V(), p=S.progress;
   const ci=counts("interior"), ce=counts("exterior");
-  const all=ci.total+ce.total, done=ci.done+ce.done;
-  const nxt=nextPending();
+  const all=ci.total+ce.total, done=ci.done+ce.done, pct=all?Math.round(done/all*100):0;
+  const nxt=nextPending(), left=pendingCount();
   const color=p.color||"";
-  const list = v[S.section].map(c => {
+  const secCount = S.section==="interior" ? ci : ce;
+  const list = v[S.section].map((c,idx) => {
     const shots=(p[S.section]||{})[c.id]||[];
     const isNext = nxt && nxt.section===S.section && nxt.cp.id===c.id;
     const busy = S.busy && S.busy.section===S.section && S.busy.cp===c.id;
-    return `<li class="cp ${shots.length?"done":""} ${isNext?"next":""}" id="cp-${c.id}">
-      <div><div class="cp-name">${esc(c.name)}</div>
-        <div class="cp-file">${S.section}/${c.id}_${v.id}/ · ${shots.length} shot${shots.length===1?"":"s"}</div></div>
-      <button class="shoot" data-act="shoot" data-s="${S.section}" data-c="${c.id}">${shots.length?"+ Angle":"Shoot"}</button>
+    const thumbs = shots.length
+      ? shots.map((ph,i)=>`<button data-act="view" data-s="${S.section}" data-c="${c.id}" data-i="${i}" aria-label="View shot ${i+1}"><img src="${esc(ph.thumb)}" alt=""></button>`).join("")
+      : `<span class="ph">${ic("camera","sm")}</span><span class="ph">${ic("camera","sm")}</span><span class="ph">${ic("camera","sm")}</span>`;
+    return `<li class="cp ${shots.length?"done":""} ${isNext?"next":""}" id="cp-${c.id}" data-act="shoot" data-s="${S.section}" data-c="${c.id}">
+      <span class="st">${shots.length ? ic("check","sm") : idx+1}</span>
+      <div style="min-width:0"><div class="cp-name">${esc(c.name)}</div><div class="thumbs">${thumbs}</div></div>
+      <div class="cp-right"><span class="count">${shots.length}</span>${ic(shots.length?"plus":"camera","sm")}</div>
       ${busy?`<div class="busy">Camera open…</div>`:""}
-      <div class="thumbs">${shots.map((ph,i)=>`<button data-act="view" data-s="${S.section}" data-c="${c.id}" data-i="${i}" aria-label="View photo"><img src="${esc(ph.thumb)}" alt=""></button>`).join("")}</div>
     </li>`;
   }).join("");
   $app.innerHTML = `
     <header class="top">
-      <button class="icon-btn" data-act="home" aria-label="Back to variants">‹ Back</button>
-      <h1>${esc(v.name)}</h1><span class="veh">V${pad3(S.vehicle)}</span>
-      <button class="icon-btn" data-act="settings" aria-label="${esc(v.name)} checkpoints">⚙</button>
+      <button class="ibtn" data-act="home" aria-label="Back">${ic("back")}</button>
+      <h1>${esc(v.name)}</h1>
+      <button class="ibtn" data-act="settings" aria-label="${esc(v.name)} checkpoints">${ic("gear")}</button>
     </header>
-    ${S.cfg.colors.length || color ? `<div class="colorbar"><span>Color: <b>${color ? esc(color) : "not set"}</b></span>
-      <button class="icon-btn" data-act="changeColor">${color ? "Change" : "Set color"}</button></div>` : ""}
-    <div class="tabs" role="tablist">
-      <button class="tab" role="tab" aria-selected="${S.section==="interior"}" data-act="tab" data-s="interior">Interior<span class="n">${ci.done}/${ci.total}</span></button>
-      <button class="tab" role="tab" aria-selected="${S.section==="exterior"}" data-act="tab" data-s="exterior">Exterior<span class="n">${ce.done}/${ce.total}</span></button>
+    <div class="card vhead">
+      <div class="vrow">
+        <span class="vnum">V${pad3(S.vehicle)}</span>
+        <span class="vcolor">${color ? `<i class="swatch" style="background:${swatchColor(color)}"></i>${esc(color)}` : `<span class="meta">Color not set</span>`}</span>
+        ${S.cfg.colors.length || color ? `<button class="pill" data-act="changeColor">${color?"Change":"Set color"}</button>` : ""}
+      </div>
+      <div class="vrow" style="justify-content:space-between"><span class="meta">${done} / ${all} checkpoints</span><b style="color:var(--primary)">${pct}%</b></div>
+      <div class="bar"><i style="width:${pct}%"></i></div>
     </div>
-    <div class="progress"><i style="width:${all?done/all*100:0}%"></i></div>
-    <div class="meta" style="margin-bottom:10px">${done} of ${all} checkpoints done</div>
+    <div class="seg" role="tablist">
+      <button role="tab" aria-selected="${S.section==="interior"}" data-act="tab" data-s="interior">${ic("car","sm")}Interior ${ci.done}/${ci.total}</button>
+      <button role="tab" aria-selected="${S.section==="exterior"}" data-act="tab" data-s="exterior">${ic("car","sm")}Exterior ${ce.done}/${ce.total}</button>
+    </div>
+    <div class="sechead"><h2>${S.section==="interior"?"Interior":"Exterior"} checkpoints</h2><span>${secCount.done} / ${secCount.total}</span></div>
     <ul class="cps">${list || `<li class="empty">No ${S.section} checkpoints for this variant. Add them with ⚙.</li>`}</ul>
+    <p class="meta" style="margin:10px 2px 0">Tap a checkpoint to shoot. Tap a thumbnail to view, retake or delete.</p>
     ${S.viewer ? viewerHTML() : ""}
     <div class="dock"><div class="dock-in">
-      ${nxt ? `<button class="btn primary" data-act="shoot" data-s="${nxt.section}" data-c="${nxt.cp.id}">Shoot next: ${esc(nxt.cp.name)}</button>`
-            : `<button class="btn primary" data-act="new" data-v="${v.id}">All done · Next vehicle</button>`}
-      ${nxt ? `<button class="btn ghost" data-act="new" data-v="${v.id}">Next vehicle</button>` : ""}
+      ${nxt ? `<button class="btn soft side" data-act="new" data-v="${v.id}" aria-label="Next vehicle">${ic("next")}Next car</button>
+               <button class="btn primary main" data-act="shoot" data-s="${nxt.section}" data-c="${nxt.cp.id}">
+                 ${ic("camera","lg")}<span style="flex:1;min-width:0"><b>Shoot next: ${esc(nxt.cp.name)}</b><small>${left} remaining</small></span>${ic("chev")}</button>`
+            : `<button class="btn primary main" data-act="new" data-v="${v.id}">${ic("check","lg")}<span style="flex:1"><b>All done · Next vehicle</b><small>Start V${pad3(S.vehicle+1)} or later number</small></span>${ic("chev")}</button>`}
     </div></div>`;
 }
 
@@ -380,18 +564,18 @@ function viewerHTML(){
     ${S.confirm==="photo" ? `<div class="confirm"><p>Delete this photo from the device?</p>
         <div class="row-btns"><button class="btn danger" data-act="delPhoto">Delete photo</button>
         <button class="btn ghost" data-act="cancelConfirm">Keep</button></div></div>`
-      : `<div class="row-btns"><button class="btn ghost" data-act="closeViewer">Close</button>
-        ${ph.from==="browse" ? "" : `<button class="btn primary" data-act="retake">Retake</button>`}
+      : `<div class="row-btns"><button class="btn ghost" data-act="closeViewer">${ic("x","sm")}Close</button>
+        ${ph.from==="browse" ? "" : `<button class="btn primary" data-act="retake">${ic("camera","sm")}Retake</button>`}
         <button class="btn danger" data-act="askDelPhoto">Delete</button></div>
         ${ph.from==="browse" ? "" : `<div class="name" style="opacity:.75">Retake takes a new photo and deletes this one.</div>`}`}
   </div>`;
 }
 
-// Color dropdown sheet: shown when starting a new vehicle, or to change the current vehicle's color.
 function sheetHTML(){
   const sh=S.sheet, v=findV(S.cfg, sh.vid);
   return `<div class="sheet-bg"><div class="sheet" role="dialog" aria-label="Vehicle color">
-    <h2>${sh.change ? `V${pad3(sh.vehicle)} color` : `New ${esc(v.name)} vehicle`}</h2>
+    <div style="display:flex;gap:12px;align-items:center">${carTile(v.name).replace('class="car"','class="car" style="width:96px;height:64px;flex:0 0 auto"')}
+      <h2>${sh.change ? `V${pad3(sh.vehicle)} color` : `New ${esc(v.name)} vehicle`}</h2></div>
     <label class="meta" for="sheetColor">Vehicle color</label>
     <select id="sheetColor">
       <option value="" ${sh.color?"":"selected"} disabled>Select color…</option>
@@ -404,63 +588,68 @@ function sheetHTML(){
   </div></div>`;
 }
 
+function menuHTML(){
+  return `<div class="sheet-bg" data-act="menuClose"><div class="sheet" role="dialog" aria-label="Menu">
+    <button class="menu-item" data-act="openBrowse"><span class="ico">${ic("folder")}</span><span><b>Photos</b><span>Browse Variant → Color → Interior/Exterior → Checkpoint</span></span></button>
+    <button class="menu-item" data-act="openStats"><span class="ico">${ic("chart")}</span><span><b>Dashboard</b><span>Vehicles per variant, colors, images per checkpoint</span></span></button>
+    <button class="menu-item" data-act="openZip"><span class="ico">${ic("zip")}</span><span><b>Zip photos</b><span>Export a date range, send by Bluetooth</span></span></button>
+    <button class="menu-item" data-act="global"><span class="ico">${ic("gear")}</span><span><b>Settings</b><span>Colors, variants, common checkpoints</span></span></button>
+  </div></div>`;
+}
+
 function itemRow(c, i, n, acts, extra=""){
   return `<li><span>${esc(c.name)}${extra}</span>
-    <button class="x mv" data-act="${acts}Up" data-id="${c.id}" ${i===0?"disabled":""} aria-label="Move up">↑</button>
-    <button class="x mv" data-act="${acts}Down" data-id="${c.id}" ${i===n-1?"disabled":""} aria-label="Move down">↓</button>
+    <button class="x mv" data-act="${acts}Up" data-id="${c.id}" ${i===0?"disabled":""} aria-label="Move up">${ic("up","sm")}</button>
+    <button class="x mv" data-act="${acts}Down" data-id="${c.id}" ${i===n-1?"disabled":""} aria-label="Move down">${ic("down","sm")}</button>
     ${S.confirm===acts+"/"+c.id
       ? `<button class="x" data-act="${acts}Del" data-id="${c.id}">Remove</button><button class="x" style="color:var(--muted)" data-act="cancelConfirm">Keep</button>`
-      : `<button class="x" data-act="ask" data-key="${acts}/${c.id}" aria-label="Remove ${esc(c.name)}">✕</button>`}
+      : `<button class="x" data-act="ask" data-key="${acts}/${c.id}" aria-label="Remove ${esc(c.name)}">${ic("x","sm")}</button>`}
   </li>`;
 }
-
 function listBlock(title, arr, acts, addId, placeholder, extraFn){
   return `<p class="label">${title} · ${arr.length}</p>
-    <ul class="edit-list">${arr.map((c,i)=>itemRow(c,i,arr.length,acts,extraFn?extraFn(c):"")).join("") || `<li class="empty">None yet.</li>`}</ul>
-    <div class="add" style="margin-top:8px"><input type="text" id="${addId}" placeholder="${placeholder}" autocomplete="off">
-      <button class="btn ghost" data-act="add" data-input="${addId}" style="padding:10px 14px">Add</button></div>`;
+    <ul class="list">${arr.map((c,i)=>itemRow(c,i,arr.length,acts,extraFn?extraFn(c):"")).join("") || `<li class="empty">None yet.</li>`}</ul>
+    <div class="add"><input type="text" id="${addId}" placeholder="${placeholder}" autocomplete="off">
+      <button class="btn soft" data-act="add" data-input="${addId}" aria-label="Add">${ic("plus","sm")}Add</button></div>`;
 }
 
-// ☰ Settings: common lists for every variant.
 function renderGlobal(){
   const c=S.cfg;
   $app.innerHTML = `
-    <header class="top"><button class="icon-btn" data-act="home">‹ Back</button><h1>Settings</h1></header>
+    <header class="top"><button class="ibtn" data-act="home" aria-label="Back">${ic("back")}</button><h1>Settings</h1></header>
     <div class="err" id="err"></div>
-    ${listBlock("Colors (all variants)", c.colors, "color", "add-color", "Add color, e.g. Tornado Blue")}
+    ${listBlock("Colors (all variants)", c.colors, "color", "add-color", "Add color, e.g. Tornado Blue", x=>`<div><i class="swatch" style="display:inline-block;background:${swatchColor(x.name)};width:12px;height:12px;vertical-align:-1px"></i></div>`)}
     <p class="label">Variants · ${c.variants.length}</p>
-    <ul class="edit-list">${c.variants.map((v,i)=>`<li><span>${esc(v.name)}<div class="cp-file">${v.interior.length} interior · ${v.exterior.length} exterior</div></span>
-      <button class="x mv" data-act="variantUp" data-id="${v.id}" ${i===0?"disabled":""} aria-label="Move up">↑</button>
-      <button class="x mv" data-act="variantDown" data-id="${v.id}" ${i===c.variants.length-1?"disabled":""} aria-label="Move down">↓</button>
+    <ul class="list">${c.variants.map((v,i)=>`<li><span>${esc(v.name)}<div class="meta">${v.interior.length} interior · ${v.exterior.length} exterior</div></span>
+      <button class="x mv" data-act="variantUp" data-id="${v.id}" ${i===0?"disabled":""} aria-label="Move up">${ic("up","sm")}</button>
+      <button class="x mv" data-act="variantDown" data-id="${v.id}" ${i===c.variants.length-1?"disabled":""} aria-label="Move down">${ic("down","sm")}</button>
       <button class="x edit" data-act="editVariant" data-id="${v.id}">Checkpoints</button>
       ${S.confirm==="variant/"+v.id
         ? `<button class="x" data-act="variantDel" data-id="${v.id}">Remove</button><button class="x" style="color:var(--muted)" data-act="cancelConfirm">Keep</button>`
-        : `<button class="x" data-act="ask" data-key="variant/${v.id}" aria-label="Remove ${esc(v.name)}">✕</button>`}
+        : `<button class="x" data-act="ask" data-key="variant/${v.id}" aria-label="Remove ${esc(v.name)}">${ic("x","sm")}</button>`}
       </li>`).join("") || `<li class="empty">No variants yet.</li>`}</ul>
-    <div class="card" style="margin-top:8px">
+    <div class="card stack" style="margin-top:8px">
       <input type="text" id="add-variant" placeholder="New variant name, e.g. Punch Creative" autocomplete="off">
       <select id="variantFrom">
         <option value="">Start with the common checkpoints</option>
         ${c.variants.map(v=>`<option value="${v.id}">Copy checkpoints from ${esc(v.name)}</option>`).join("")}
       </select>
-      <button class="btn primary" data-act="add" data-input="add-variant">Add variant</button>
+      <button class="btn primary" data-act="add" data-input="add-variant">${ic("plus","sm")}Add variant</button>
     </div>
     <p class="label">Common checkpoints</p>
     <div class="meta">Adding, removing or reordering here changes every variant. Removed variants and checkpoints keep their photo folders.</div>
     ${listBlock("Interior", c.common.interior, "common-interior", "add-common-interior", "Add interior checkpoint")}
-    ${listBlock("Exterior", c.common.exterior, "common-exterior", "add-common-exterior", "Add exterior checkpoint")}
-    <div style="height:24px"></div>`;
+    ${listBlock("Exterior", c.common.exterior, "common-exterior", "add-common-exterior", "Add exterior checkpoint")}`;
 }
 
-// ⚙ Variant checkpoints: this variant only.
 function renderSetup(){
   const v=V(), common=S.cfg.common;
-  const own = s => c => common[s].some(x=>x.id===c.id) ? "" : `<div class="cp-file tag">only ${esc(v.name)}</div>`;
+  const own = s => c => common[s].some(x=>x.id===c.id) ? "" : `<div class="tag">only ${esc(v.name)}</div>`;
   const missing = s => common[s].filter(c=>!v[s].some(x=>x.id===c.id)).length;
   const diff = missing("interior")+missing("exterior");
   $app.innerHTML = `
-    <header class="top"><button class="icon-btn" data-act="settingsBack">‹ Back</button><h1>${esc(v.name)} checkpoints</h1></header>
-    <div class="meta">Changes here apply to ${esc(v.name)} only. Shared lists live in ☰ Settings on the home screen.${diff?` ${diff} common checkpoint${diff===1?" is":"s are"} turned off for this variant.`:""}</div>
+    <header class="top"><button class="ibtn" data-act="settingsBack" aria-label="Back">${ic("back")}</button><h1>${esc(v.name)} checkpoints</h1></header>
+    <div class="meta">Changes here apply to ${esc(v.name)} only. Shared lists live in ☰ → Settings.${diff?` ${diff} common checkpoint${diff===1?" is":"s are"} turned off for this variant.`:""}</div>
     <div class="err" id="err"></div>
     ${listBlock("Interior", v.interior, "own-interior", "add-own-interior", "Add interior checkpoint", own("interior"))}
     ${listBlock("Exterior", v.exterior, "own-exterior", "add-own-exterior", "Add exterior checkpoint", own("exterior"))}
@@ -468,68 +657,73 @@ function renderSetup(){
     ${S.confirm==="reset"
       ? `<div class="confirm"><p>Replace ${esc(v.name)}'s lists with the common checkpoints? Photos already taken stay in their folders.</p>
           <div class="row-btns"><button class="btn danger" data-act="resetOwn">Reset to common</button><button class="btn ghost" data-act="cancelConfirm">Keep</button></div></div>`
-      : `<button class="btn ghost" data-act="ask" data-key="reset" style="width:100%">Reset to common checkpoints</button>`}
-    <div style="height:24px"></div>`;
+      : `<button class="btn ghost block" data-act="ask" data-key="reset">Reset to common checkpoints</button>`}`;
 }
 
 // ---------- zip ----------
-function two(n){ return String(n).padStart(2,"0"); }
 function todayStr(d=new Date()){ return `${d.getFullYear()}-${two(d.getMonth()+1)}-${two(d.getDate())}`; }
 function mb(b){ return b >= 1e9 ? (b/1e9).toFixed(2)+" GB" : (b/1e6).toFixed(1)+" MB"; }
+function fmtTime(t){ const d=new Date(t); return `${two(d.getDate())}/${two(d.getMonth()+1)} ${two(d.getHours())}:${two(d.getMinutes())}`; }
+function fmtLong(t){ const d=new Date(t); return d.toLocaleDateString(undefined,{day:"2-digit",month:"short",year:"numeric"})+", "+d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}); }
 function zipRange(){
-  const z=S.zip, [y,m,d]=z.date.split("-").map(Number);
-  const [fh,fm]=z.from.split(":").map(Number), [th,tm]=z.to.split(":").map(Number);
-  const from=new Date(y,m-1,d,fh,fm,0,0).getTime(), to=new Date(y,m-1,d,th,tm,59,999).getTime();
-  return {from, to, label:`${z.date}_${z.from.replace(":","")}-${z.to.replace(":","")}`};
+  const z=S.zip;
+  const at=(ds,ts,end)=>{ const [y,m,d]=ds.split("-").map(Number), [h,mi]=ts.split(":").map(Number); return new Date(y,m-1,d,h,mi,end?59:0,end?999:0).getTime(); };
+  const from=at(z.fromDate,z.fromTime,false), to=at(z.toDate,z.toTime,true);
+  const label = z.fromDate===z.toDate ? `${z.fromDate}_${z.fromTime.replace(":","")}-${z.toTime.replace(":","")}`
+                                      : `${z.fromDate}_${z.fromTime.replace(":","")}_to_${z.toDate}_${z.toTime.replace(":","")}`;
+  return {from, to, label};
 }
 function refreshZipCount(){
   const r=zipRange();
-  if(r.to < r.from){ S.zip.count=null; S.zip.msg="The end time is before the start time."; return; }
+  if(r.to < r.from){ S.zip.count=null; S.zip.msg="The end is before the start."; return; }
   const c=nat("zipCount", r.from, r.to); S.zip.count=c.count; S.zip.bytes=c.bytes; S.zip.msg="";
 }
-
-function renderZip(){
-  const z=S.zip;
-  $app.innerHTML = `
-    <header class="top"><button class="icon-btn" data-act="home">‹ Back</button><h1>Zip photos</h1></header>
-    <div class="card">
-      <label class="meta" for="zDate">Date</label>
-      <input type="date" id="zDate" value="${z.date}" max="${todayStr()}">
-      <div class="row-btns">
-        <div style="flex:1;min-width:120px"><label class="meta" for="zFrom">From</label><input type="time" id="zFrom" value="${z.from}"></div>
-        <div style="flex:1;min-width:120px"><label class="meta" for="zTo">To</label><input type="time" id="zTo" value="${z.to}"></div>
-      </div>
-      <div class="meta" id="zCount">${z.msg ? `<span class="err">${esc(z.msg)}</span>` :
-        z.count==null ? "" : z.count ? `<b>${z.count}</b> photo${z.count===1?"":"s"} · about ${mb(z.bytes)}` : "No photos in this range."}</div>
-      <button class="btn primary" data-act="makeZip" ${(z.busy||!z.count)?"disabled":""}>${z.busy ? esc(z.busy) : "Make zip"}</button>
-    </div>
-    ${z.result ? `<div class="card" style="margin-top:12px;border-color:var(--done)">
-        <div><b>Zip ready</b> · ${z.result.count} photos · ${mb(z.result.bytes)}</div>
-        <div class="cp-file">${esc(z.result.path)}</div>
-        ${sendButtons(z.result.path, z.result.bytes)}
-      </div>` : ""}
-    ${z.list && z.list.length ? `<p class="label">Recent zips</p>
-      <ul class="edit-list zips">${z.list.map(f=>`<li><div style="flex:1;min-width:0">
-          <div class="cp-file" style="color:var(--fg)">${esc(f.name)}</div>
-          <div class="meta">${mb(f.bytes)} · ${fmtTime(f.time)}</div>
-          ${sendButtons(f.path, f.bytes, true)}</div></li>`).join("")}</ul>` : ""}
-    <p class="meta" style="margin-top:12px">The zip keeps Variant / Color / interior-exterior / checkpoint folders. Photos are matched by the time they were taken (or last retaken). The zip also includes capture_log.csv, vehicles.csv and config.json.</p>`;
-}
-
-// Bluetooth moves roughly 100–200 KB/s, so big zips take a while; say so up front.
 function btEstimate(bytes){
   const min = bytes / 150e3 / 60;
   return min < 1 ? "under a minute" : min < 60 ? `about ${Math.round(min)} min` : `about ${(min/60).toFixed(1)} hours`;
 }
-function sendButtons(path, bytes, compact){
-  return `<div class="row-btns" style="margin-top:${compact?6:0}px">
-      <button class="btn ${compact?"ghost":"primary"} send" data-act="shareZip" data-bt="1" data-path="${esc(path)}">Send via Bluetooth</button>
-      <button class="btn ghost send" data-act="shareZip" data-bt="0" data-path="${esc(path)}">Other apps…</button>
-    </div>
-    ${compact ? "" : `<div class="meta">Bluetooth: ${btEstimate(bytes)} for this zip. Pair the other device first; it has to accept the file.
-      For big zips, USB (Download/PunchCapture_Zips) or Quick Share under "Other apps" is much faster.</div>`}`;
+function sendButtons(path){
+  return `<div class="row-btns">
+      <button class="btn ghost" data-act="shareZip" data-bt="1" data-path="${esc(path)}">${ic("bt","sm")}Bluetooth</button>
+      <button class="btn ghost" data-act="shareZip" data-bt="0" data-path="${esc(path)}">${ic("share","sm")}Other apps</button>
+    </div>`;
 }
-
+function renderZip(){
+  const z=S.zip;
+  $app.innerHTML = `
+    <header class="top"><button class="ibtn" data-act="home" aria-label="Back">${ic("back")}</button><h1>Zip photos</h1></header>
+    <div class="card stack">
+      <h2 style="margin:0;font-size:1.06rem">Select date and time range</h2>
+      <div class="range">
+        <div class="rbox"><span class="meta">${ic("calendar","sm")}From</span>
+          <input type="date" id="zFromDate" value="${z.fromDate}" max="${todayStr()}" aria-label="From date">
+          <input type="time" id="zFromTime" value="${z.fromTime}" aria-label="From time"></div>
+        <div class="rbox"><span class="meta">${ic("calendar","sm")}To</span>
+          <input type="date" id="zToDate" value="${z.toDate}" max="${todayStr()}" aria-label="To date">
+          <input type="time" id="zToTime" value="${z.toTime}" aria-label="To time"></div>
+      </div>
+      <div class="summary"><span class="ico">${ic("file","lg")}</span>
+        <div style="min-width:0">${z.msg ? `<b class="err">${esc(z.msg)}</b>` : z.count==null ? "<b>…</b>" :
+          z.count ? `<b>${z.count} photo${z.count===1?"":"s"} · about ${mb(z.bytes)}</b>` : `<b>No photos in this range</b>`}
+          <span class="meta">Across all variants, colors and checkpoints</span></div></div>
+      <button class="btn primary big block" data-act="makeZip" ${(z.busy||!z.count)?"disabled":""}>${ic("zip")}${z.busy ? esc(z.busy) : "Make zip"}</button>
+    </div>
+    ${z.result ? `<div class="ready" style="margin-top:12px">
+        <div class="ready-head"><span class="ico">${ic("check")}</span>
+          <div style="min-width:0"><b>Zip ready</b><div class="mono" style="color:var(--fg)">${esc(z.result.name||z.result.path.split("/").pop())}</div>
+          <div class="meta">${mb(z.result.bytes)} · ${z.result.count} photos</div></div></div>
+        ${sendButtons(z.result.path)}
+        <div class="meta">Bluetooth: ${btEstimate(z.result.bytes)} for this zip (pair first; the other device must accept). USB from Download/PunchCapture_Zips or Quick Share under Other apps is faster.</div>
+      </div>` : ""}
+    ${z.list && z.list.length ? `<p class="label">Recent zips</p>
+      <ul class="list zips">${z.list.map(f=>`<li>
+          <button class="zrow" data-act="zipOpen" data-path="${esc(f.path)}" aria-expanded="${z.open===f.path}">
+            <span class="ico">${ic("file")}</span>
+            <div><div class="mono" style="color:var(--fg)">${esc(f.name)}</div><div class="meta">${mb(f.bytes)} · ${fmtLong(f.time)}</div></div>
+            ${ic("dots")}</button>
+          ${z.open===f.path ? `<div style="margin-top:10px">${sendButtons(f.path)}</div>` : ""}</li>`).join("")}</ul>` : ""}
+    <p class="meta" style="margin-top:12px">The zip keeps Variant / Color / interior-exterior / checkpoint folders, plus capture_log.csv, vehicles.csv and config.json. Photos are matched by the time they were taken.</p>`;
+}
 window.onZipProgress = function(done,total){ if(S.zip){ S.zip.busy=`Zipping ${done} of ${total}…`; if(S.screen==="zip") render(); } };
 window.onZip = function(raw){
   const r=JSON.parse(raw); if(!S.zip) return;
@@ -538,67 +732,45 @@ window.onZip = function(raw){
   if(S.screen==="zip") render();
 };
 
-
-// ---------- ☰ menu ----------
-function menuHTML(){
-  return `<div class="sheet-bg" data-act="menuClose"><div class="sheet menu-sheet" role="dialog" aria-label="Menu">
-    <button class="menu-item" data-act="openBrowse"><b>Photos</b><span>Browse Variant → Interior/Exterior → Checkpoint folders</span></button>
-    <button class="menu-item" data-act="openStats"><b>Dashboard</b><span>Vehicles per variant, colors, images per checkpoint</span></button>
-    <button class="menu-item" data-act="global"><b>Settings</b><span>Colors, variants, common checkpoints</span></button>
-  </div></div>`;
-}
-
-// ---------- folder view ----------
+// ---------- photos browser ----------
 const thumbCache = {};
 window.onThumb = function(path, url){
   thumbCache[path] = url;
   document.querySelectorAll(`img[data-path="${CSS.escape(path)}"]`).forEach(img => { img.src = url; img.classList.add("ready"); });
 };
-
 function loadBrowse(rel){
   S.browse = nat("browse", rel);
   const want = S.browse.photos.map(p=>p.path).filter(p=>!thumbCache[p]);
   if(want.length) Native.requestThumbs(JSON.stringify(want));
 }
-
-function fmtTime(t){
-  const d=new Date(t);
-  return `${two(d.getDate())}/${two(d.getMonth()+1)} ${two(d.getHours())}:${two(d.getMinutes())}`;
-}
-
 function renderBrowse(){
   const b=S.browse, parts=b.rel ? b.rel.split("/") : [];
   const crumbs = [`<button class="crumb" data-act="browseTo" data-rel="">PunchCapture</button>`]
     .concat(parts.map((p,i)=>`<button class="crumb" data-act="browseTo" data-rel="${esc(parts.slice(0,i+1).join("/"))}">${esc(p)}</button>`))
     .join(`<span class="crumb-sep">/</span>`);
   $app.innerHTML = `
-    <header class="top"><button class="icon-btn" data-act="browseUp">‹ Back</button><h1>Photos</h1></header>
+    <header class="top"><button class="ibtn" data-act="browseUp" aria-label="Back">${ic("back")}</button><h1>Photos</h1></header>
     <nav class="crumbs" aria-label="Folder path">${crumbs}</nav>
-    ${b.dirs.length ? `<ul class="folders">${b.dirs.map(d=>`<li><button data-act="browseTo" data-rel="${esc(d.rel)}">
-        <span class="folder-ico" aria-hidden="true"></span><span class="folder-name">${esc(d.name)}</span>
-        <span class="folder-count">${d.count}</span></button></li>`).join("")}</ul>` : ""}
+    ${b.dirs.length ? `<ul class="list folders">${b.dirs.map(d=>`<li><button data-act="browseTo" data-rel="${esc(d.rel)}">
+        <span class="folder-ico">${ic("folder","sm")}</span><span class="folder-name">${esc(d.name)}</span>
+        <span class="folder-count">${d.count}</span>${ic("chev","sm")}</button></li>`).join("")}</ul>` : ""}
     ${b.photos.length ? `<p class="label">${b.photos.length} photo${b.photos.length===1?"":"s"}</p>
       <div class="grid">${b.photos.map((p,i)=>`<button class="tile" data-act="browseView" data-i="${i}">
         <img data-path="${esc(p.path)}" ${thumbCache[p.path] ? `src="${esc(thumbCache[p.path])}" class="ready"` : ""} alt="">
         <span class="tile-cap">${p.vehicle ? "V"+pad3(p.vehicle)+" · " : ""}${fmtTime(p.time)}</span></button>`).join("")}</div>` : ""}
-    ${!b.dirs.length && !b.photos.length ? `<div class="empty">This folder is empty.</div>` : ""}
+    ${!b.dirs.length && !b.photos.length ? `<div class="card empty">This folder is empty.</div>` : ""}
     ${S.viewer ? viewerHTML() : ""}`;
 }
 
 // ---------- dashboard ----------
 const SERIES = 8;
-function colorSlot(name){            // color follows the entity: its position in the shared color list
-  const i = S.cfg.colors.findIndex(c=>c.name===name);
-  return i < 0 ? null : i;
-}
-
+function colorSlot(name){ const i = S.cfg.colors.findIndex(c=>c.name===name); return i < 0 ? null : i; }
 function dayRange(f){
   if(f.range==="all") return null;
   const ds = f.range==="today" ? todayStr() : f.date;
   const [y,m,d]=ds.split("-").map(Number);
   return [new Date(y,m-1,d).getTime(), new Date(y,m-1,d,23,59,59,999).getTime()];
 }
-
 function statsModel(){
   const st=S.stats, rng=dayRange(st);
   const photos = st.raw.filter(p => !rng || (p.t>=rng[0] && p.t<=rng[1]));
@@ -614,91 +786,77 @@ function statsModel(){
     const v=findV(S.cfg,id), need = v ? SECTIONS.flatMap(s=>v[s].map(c=>s+"/"+c.id)) : [];
     const vs = Object.values(vehicles).filter(x=>x.v===id);
     const complete = vs.filter(x => need.length && need.every(k=>x.cps.has(k))).length;
-    return {id, name: v ? v.name : id, complete, partial: vs.length-complete, vehicles: vs,
-            photos: photos.filter(p=>p.v===id)};
+    return {id, name: v ? v.name : id, complete, partial: vs.length-complete, vehicles: vs, photos: photos.filter(p=>p.v===id)};
   });
   return {photos, vehicles:Object.values(vehicles), byVariant};
 }
-
-function hbar(label, segs, max, act){
+function hbar(label, segs, max, act, zero){
   const total = segs.reduce((a,s)=>a+s.n,0);
-  return `<${act?`button data-act="${act.a}" data-id="${esc(act.id)}"`:"div"} class="hbar">
+  const tag = act ? `button data-act="${act.a}" data-id="${esc(act.id)}"` : "div";
+  return `<${tag} class="hbar${zero?" zero":""}">
     <span class="hbar-label">${esc(label)}</span>
     <span class="hbar-track">${segs.filter(s=>s.n).map(s=>`<i class="${s.cls}" style="width:${max? s.n/max*100 : 0}%"></i>`).join("")}</span>
     <span class="hbar-val">${total}</span></${act?"button":"div"}>`;
 }
-
-function pieSVG(slices){
-  const total=slices.reduce((a,s)=>a+s.n,0), R=70, C=80;
-  if(!total) return "";
-  if(slices.filter(s=>s.n).length===1){
-    const s=slices.find(x=>x.n);
-    return `<svg viewBox="0 0 160 160" class="pie" role="img" aria-label="${esc(s.label)} 100%"><circle cx="${C}" cy="${C}" r="${R}" class="${s.cls}"/></svg>`;
-  }
-  let a=-Math.PI/2, paths="";
-  slices.filter(s=>s.n).forEach(s=>{
-    const a2=a+s.n/total*Math.PI*2, large=(a2-a)>Math.PI?1:0;
-    const x1=C+R*Math.cos(a), y1=C+R*Math.sin(a), x2=C+R*Math.cos(a2), y2=C+R*Math.sin(a2);
-    paths+=`<path d="M${C},${C} L${x1.toFixed(2)},${y1.toFixed(2)} A${R},${R} 0 ${large} 1 ${x2.toFixed(2)},${y2.toFixed(2)} Z" class="${s.cls}"/>`;
-    a=a2;
-  });
-  return `<svg viewBox="0 0 160 160" class="pie" role="img" aria-label="Vehicles by color">${paths}</svg>`;
+function donutSVG(slices, total, caption){
+  const R=58, C=75, W=22, circ=2*Math.PI*R;
+  let off=0;
+  const arcs = slices.filter(s=>s.n).map(s=>{
+    const len=s.n/total*circ, gap=slices.filter(x=>x.n).length>1 ? 2 : 0;
+    const el=`<circle cx="${C}" cy="${C}" r="${R}" fill="none" class="${s.cls}" stroke-width="${W}"
+      stroke-dasharray="${Math.max(0,len-gap)} ${circ}" stroke-dashoffset="${-off}" transform="rotate(-90 ${C} ${C})"/>`;
+    off+=len; return el;
+  }).join("");
+  return `<svg viewBox="0 0 150 150" class="donut" role="img" aria-label="${total} ${caption} by color">
+    <circle cx="${C}" cy="${C}" r="${R}" fill="none" stroke="var(--card-2)" stroke-width="${W}"/>${arcs}
+    <text x="${C}" y="${C+4}" text-anchor="middle" font-size="26" font-weight="800">${total}</text>
+    <text x="${C}" y="${C+22}" text-anchor="middle" class="sub">${caption}</text></svg>`;
 }
-
-function statsFilterHTML(){
+function rangeSelect(){
   const st=S.stats;
-  return `<div class="filters">
-    <select id="statRange" aria-label="Date range">
+  return `<select id="statRange" class="compact" aria-label="Date range">
       <option value="all" ${st.range==="all"?"selected":""}>All time</option>
       <option value="today" ${st.range==="today"?"selected":""}>Today</option>
-      <option value="date" ${st.range==="date"?"selected":""}>Pick a date…</option>
-    </select>
-    ${st.range==="date" ? `<input type="date" id="statDate" value="${st.date}" max="${todayStr()}" aria-label="Date">` : ""}
-  </div>`;
+      <option value="date" ${st.range==="date"?"selected":""}>Pick date…</option>
+    </select>`;
 }
-
+function datePick(){ return S.stats.range==="date" ? `<input type="date" id="statDate" value="${S.stats.date}" max="${todayStr()}" aria-label="Date" style="margin-bottom:12px">` : ""; }
+function tilesHTML(a,b,c){
+  return `<div class="tiles">
+    <div class="tstat"><span class="hd">${ic("car","sm")}Vehicles</span><b>${a}</b></div>
+    <div class="tstat ok"><span class="hd">${ic("check","sm")}Complete</span><b>${b}</b></div>
+    <div class="tstat"><span class="hd">${ic("image","sm")}Photos</span><b>${c}</b></div></div>`;
+}
 function renderStats(){
   const st=S.stats, m=statsModel();
   if(st.variant) return renderStatsVariant(m);
   const max=Math.max(1,...m.byVariant.map(r=>r.complete+r.partial));
-  const rows=m.byVariant.map(r=>hbar(r.name,[{n:r.complete,cls:"s1"},{n:r.partial,cls:"s2"}],max,{a:"statVariant",id:r.id})).join("");
   $app.innerHTML = `
-    <header class="top"><button class="icon-btn" data-act="home">‹ Back</button><h1>Dashboard</h1></header>
-    ${statsFilterHTML()}
-    <div class="tiles">
-      <div class="tile-stat"><span>Vehicles</span><b>${m.vehicles.length}</b></div>
-      <div class="tile-stat"><span>Photos</span><b>${m.photos.length}</b></div>
-      <div class="tile-stat"><span>Complete</span><b>${m.byVariant.reduce((a,r)=>a+r.complete,0)}</b></div>
-    </div>
+    <header class="top"><button class="ibtn" data-act="home" aria-label="Back">${ic("back")}</button><h1>Dashboard</h1>${rangeSelect()}</header>
+    ${datePick()}
+    ${tilesHTML(m.vehicles.length, m.byVariant.reduce((a,r)=>a+r.complete,0), m.photos.length)}
     <div class="card chart">
       <h2>Vehicles per variant</h2>
       <div class="legend"><span><i class="sw s1"></i>Complete</span><span><i class="sw s2"></i>Partial</span></div>
-      <div class="hbars">${rows || `<div class="empty">No variants yet.</div>`}</div>
-      <div class="meta">Complete = every checkpoint of that variant has at least one photo. Tap a variant for colors and checkpoints.</div>
+      <div class="hbars">${m.byVariant.map(r=>hbar(r.name,[{n:r.complete,cls:"s1"},{n:r.partial,cls:"s2"}],max,{a:"statVariant",id:r.id})).join("") || `<div class="empty">No variants yet.</div>`}</div>
+      <div class="meta" style="margin-top:6px">Complete = every checkpoint of that variant has a photo. Tap a variant for colors and checkpoints.</div>
     </div>
     <div class="table-wrap"><table>
       <thead><tr><th>Variant</th><th>Complete</th><th>Partial</th><th>Photos</th></tr></thead>
       <tbody>${m.byVariant.map(r=>`<tr><td>${esc(r.name)}</td><td>${r.complete}</td><td>${r.partial}</td><td>${r.photos.length}</td></tr>`).join("")}</tbody>
     </table></div>`;
 }
-
 function renderStatsVariant(m){
   const st=S.stats, r=m.byVariant.find(x=>x.id===st.variant) || {name:st.variant, vehicles:[], photos:[], complete:0, partial:0};
   const v=findV(S.cfg, st.variant);
-  // pie: vehicles per color
   const counts={}; r.vehicles.forEach(x=>{ const k=x.col||""; counts[k]=(counts[k]||0)+1; });
-  let slices = Object.keys(counts).map(k=>{
-    const slot = k ? colorSlot(k) : null;
-    return {label:k||"Not set", n:counts[k], slot};
-  }).sort((a,b)=> (a.slot??99)-(b.slot??99) || a.label.localeCompare(b.label));
-  const named = slices.filter(s=>s.slot!==null && s.slot<SERIES);
-  const rest = slices.filter(s=>!(s.slot!==null && s.slot<SERIES));
+  let slices = Object.keys(counts).map(k=>({label:k||"Not set", n:counts[k], slot: k ? colorSlot(k) : null}))
+    .sort((a,b)=> (a.slot??99)-(b.slot??99) || a.label.localeCompare(b.label));
+  const named = slices.filter(s=>s.slot!==null && s.slot<SERIES), rest = slices.filter(s=>!(s.slot!==null && s.slot<SERIES));
   slices = named.map(s=>({...s, cls:"s"+(s.slot+1)}));
   const restN = rest.reduce((a,s)=>a+s.n,0);
   if(restN) slices.push({label: rest.length===1 ? rest[0].label : "Other / not set", n:restN, cls:"sx"});
   const totalV = r.vehicles.length;
-
-  // bars: images per checkpoint, optionally for one color
   const colorSel = st.color;
   const ph = r.photos.filter(p => colorSel==="__all" || (colorSel==="__none" ? !p.col : p.col===colorSel));
   const per = {}; ph.forEach(p=>{ const k=p.s+"/"+p.c; per[k]=(per[k]||0)+1; });
@@ -707,43 +865,35 @@ function renderStatsVariant(m){
     Object.keys(per).forEach(k=>{ const [sec,id]=k.split("/"); if(sec===s && !list.some(x=>x.id===id)) list.push({id, name:id+" (removed)"}); });
     return list;
   };
-  const allRows = SECTIONS.flatMap(s=>sectionRows(s).map(c=>per[s+"/"+c.id]||0));
-  const max = Math.max(1, ...allRows);
+  const max = Math.max(1, ...SECTIONS.flatMap(s=>sectionRows(s).map(c=>per[s+"/"+c.id]||0)));
   const usedColors = [...new Set(r.vehicles.map(x=>x.col).filter(Boolean))];
   const colorOpts = S.cfg.colors.map(c=>c.name).concat(usedColors.filter(c=>colorSlot(c)===null));
-
   $app.innerHTML = `
-    <header class="top"><button class="icon-btn" data-act="statBack">‹ Back</button><h1>${esc(r.name)}</h1></header>
-    ${statsFilterHTML()}
-    <div class="tiles">
-      <div class="tile-stat"><span>Vehicles</span><b>${totalV}</b></div>
-      <div class="tile-stat"><span>Complete</span><b>${r.complete}</b></div>
-      <div class="tile-stat"><span>Photos</span><b>${r.photos.length}</b></div>
-    </div>
+    <header class="top"><button class="ibtn" data-act="statBack" aria-label="Back">${ic("back")}</button><h1>${esc(r.name)}</h1>${rangeSelect()}</header>
+    ${datePick()}
+    ${tilesHTML(totalV, r.complete, r.photos.length)}
     <div class="card chart">
       <h2>Vehicles by color</h2>
-      ${totalV ? `<div class="pie-wrap">${pieSVG(slices)}
-        <ul class="pie-legend">${slices.map(s=>`<li><i class="sw ${s.cls}"></i><span>${esc(s.label)}</span><b>${s.n}</b><em>${Math.round(s.n/totalV*100)}%</em></li>`).join("")}</ul></div>`
+      ${totalV ? `<div class="donut-wrap" style="margin-top:10px">${donutSVG(slices,totalV,"vehicles")}
+        <ul class="donut-legend">${slices.map(s=>`<li><i class="sw ${s.cls}"></i><span>${esc(s.label)}</span><b>${s.n}</b><em>${Math.round(s.n/totalV*100)}%</em></li>`).join("")}</ul></div>`
         : `<div class="empty">No vehicles in this range.</div>`}
     </div>
-    <div class="card chart">
-      <h2>Images per checkpoint</h2>
-      <select id="statColor" aria-label="Color">
-        <option value="__all" ${colorSel==="__all"?"selected":""}>All colors</option>
-        ${colorOpts.map(c=>`<option value="${esc(c)}" ${colorSel===c?"selected":""}>${esc(c)}</option>`).join("")}
-        <option value="__none" ${colorSel==="__none"?"selected":""}>Color not set</option>
-      </select>
-      ${SECTIONS.map(s=>{ const rows=sectionRows(s); return `<p class="label">${s}</p>
-        <div class="hbars">${rows.map(c=>{ const n=per[s+"/"+c.id]||0;
-          return hbar(c.name,[{n,cls:"s1"}],max).replace('class="hbar"', `class="hbar${n?"":" zero"}"`); }).join("") || `<div class="empty">No ${s} checkpoints.</div>`}</div>`; }).join("")}
-      <div class="meta">${ph.length} photo${ph.length===1?"":"s"}${colorSel==="__all"?"":" for this color"}. Checkpoints at 0 still need photos.</div>
+    <div class="card chart" style="margin-top:12px">
+      <div class="chart-head"><h2>Images per checkpoint</h2>
+        <select id="statColor" class="compact" aria-label="Color">
+          <option value="__all" ${colorSel==="__all"?"selected":""}>All colors</option>
+          ${colorOpts.map(c=>`<option value="${esc(c)}" ${colorSel===c?"selected":""}>${esc(c)}</option>`).join("")}
+          <option value="__none" ${colorSel==="__none"?"selected":""}>Color not set</option>
+        </select></div>
+      ${SECTIONS.map(s=>{ const rows=sectionRows(s); return `<p class="label blue">${s} (${rows.length})</p>
+        <div class="hbars">${rows.map(c=>{ const n=per[s+"/"+c.id]||0; return hbar(c.name,[{n,cls:"pri-bg"}],max,null,!n); }).join("") || `<div class="empty">No ${s} checkpoints.</div>`}</div>`; }).join("")}
+      <div class="meta" style="margin-top:8px">${ph.length} photo${ph.length===1?"":"s"}${colorSel==="__all"?"":" for this color"}. Checkpoints in red still need photos.</div>
     </div>`;
 }
-
-function openStats(){
+function openStats(variant){
   S.stats = S.stats || {range:"all", date:todayStr(), variant:null, color:"__all"};
   S.stats.raw = nat("stats").photos;
-  S.stats.variant = null;
+  S.stats.variant = variant || null; S.stats.color="__all";
   S.screen="stats"; S.menu=false; render(); window.scrollTo(0,0);
 }
 
@@ -759,17 +909,16 @@ function startVehicle(vid, color){
   toast(`Started V${pad3(r.vehicle)}${color?" · "+color:""}`);
 }
 function goHome(){
-  S.screen="home"; S.confirm=null; S.viewer=null; S.sheet=null;
-  loadConfig(); loadLastVehicles(); render(); window.scrollTo(0,0);
+  S.screen="home"; S.confirm=null; S.viewer=null; S.sheet=null; S.menu=false;
+  loadConfig(); loadLastVehicles(); S.homeStats=variantStatus(); render(); window.scrollTo(0,0);
 }
+function goLaunch(){ S.screen="launch"; S.menu=false; S.sheet=null; render(); window.scrollTo(0,0); }
 function backToVehicle(){ S.screen="vehicle"; S.confirm=null; loadProgress(); render(); window.scrollTo(0,0); }
 function setupBack(){
   if(S.returnTo==="vehicle") backToVehicle();
   else if(S.returnTo==="global"){ S.screen="global"; S.confirm=null; render(); window.scrollTo(0,0); }
   else goHome();
 }
-
-// Android back button: close overlays first, then go back a screen, then leave the app.
 window.goBack = function(){
   if(S.menu){ S.menu=false; render(); return true; }
   if(S.sheet){ S.sheet=null; render(); return true; }
@@ -777,24 +926,22 @@ window.goBack = function(){
   if(S.confirm){ S.confirm=null; render(); return true; }
   if(S.screen==="setup"){ setupBack(); return true; }
   if(S.screen==="browse" && S.browse.rel){ loadBrowse(S.browse.rel.split("/").slice(0,-1).join("/")); render(); return true; }
-  if(S.screen==="stats" && S.stats.variant){ S.stats.variant=null; render(); return true; }
-  if(S.screen!=="home"){ goHome(); return true; }
+  if(S.screen==="stats" && S.stats.variant && !S.stats.fromHome){ S.stats.variant=null; render(); return true; }
+  if(S.screen==="home"){ goLaunch(); return true; }
+  if(S.screen!=="launch"){ goHome(); return true; }
   return false;
 };
-
 window.onNativeResume = function(){
   const was = S.storage && S.storage.granted;
   S.storage = nat("storage");
   if(S.storage.granted && !was){ loadConfig(); loadLastVehicles(); render(); }
 };
-
-// Called by Android when the camera returns.
 window.onPhoto = function(raw){
   const r = JSON.parse(raw);
   S.busy = null;
   if(r.error){ buzz([80,50,80]); toast(r.error); if(S.screen==="vehicle") render(); return; }
   if(S.screen!=="vehicle" || S.variant!==r.variant || S.vehicle!==r.vehicle){
-    loadConfig(); openVehicle(r.variant, r.vehicle);   // app was restarted while the camera was open
+    loadConfig(); openVehicle(r.variant, r.vehicle);
   }
   if(r.cancelled){ render(); return; }
   buzz(40); toast((r.replaced ? "Retaken " : "Saved ") + r.name);
@@ -802,12 +949,11 @@ window.onPhoto = function(raw){
   loadProgress();
   const nxt=nextPending();
   const sectionLeft = V()[r.section].some(c => !((S.progress[r.section]||{})[c.id]||[]).length);
-  S.section = (nxt && !sectionLeft) ? nxt.section : r.section;   // interior finished → jump to exterior
+  S.section = (nxt && !sectionLeft) ? nxt.section : r.section;
   render();
   const go = nxt || {cp:{id:r.checkpoint}};
   document.getElementById("cp-"+go.cp.id)?.scrollIntoView({block:"center"});
 };
-
 function showErr(msg){ const box=document.getElementById("err"); if(box) box.textContent=msg; else toast(msg); }
 
 // ---------- actions ----------
@@ -820,9 +966,7 @@ function addFromInput(inputId){
   else if(inputId.startsWith("add-own-")){ ops.addOwn(S.variant, inputId.slice(8), name); toast(`Added ${name} to ${V().name}`); }
   S.confirm=null; render(); document.getElementById(inputId)?.focus();
 }
-
 function listAction(a, id){
-  // a = "<group>Up|Down|Del", group = color | variant | common-<sec> | own-<sec>
   const m=a.match(/^(color|variant|common-(?:interior|exterior)|own-(?:interior|exterior))(Up|Down|Del)$/);
   if(!m) return false;
   const [, g, op] = m, d = op==="Up" ? -1 : 1;
@@ -839,7 +983,11 @@ $app.addEventListener("click", e => {
   try{
     if(listAction(a, b.dataset.id)) return;
     if(a==="grant"){ Native.requestStorage(); }
+    else if(a==="openPunch"){ goHome(); }
+    else if(a==="launch"){ goLaunch(); }
     else if(a==="home"){ goHome(); }
+    else if(a==="menu"){ S.menu=true; render(); }
+    else if(a==="menuClose"){ S.menu=false; render(); }
     else if(a==="global"){ S.menu=false; S.screen="global"; S.confirm=null; render(); window.scrollTo(0,0); }
     else if(a==="new"){
       if(S.cfg.colors.length){ S.sheet={vid:b.dataset.v, color:"", change:false}; render(); }
@@ -850,7 +998,7 @@ $app.addEventListener("click", e => {
     else if(a==="sheetOk"){
       const sh=S.sheet; if(!sh.color) return;
       if(sh.change){ const r=nat("setVehicleColor", sh.vid, sh.vehicle, sh.color); S.sheet=null; loadProgress(); render();
-        toast(`V${pad3(sh.vehicle)} · ${sh.color}${r.renamed ? ` · ${r.renamed} photo${r.renamed===1?"":"s"} renamed` : ""}`); }
+        toast(`V${pad3(sh.vehicle)} · ${sh.color}${r.renamed ? ` · ${r.renamed} photo${r.renamed===1?"":"s"} moved` : ""}`); }
       else startVehicle(sh.vid, sh.color);
     }
     else if(a==="resume"){ openVehicle(b.dataset.v, +b.dataset.n); }
@@ -859,6 +1007,7 @@ $app.addEventListener("click", e => {
     else if(a==="settingsBack"){ setupBack(); }
     else if(a==="tab"){ S.section=b.dataset.s; render(); }
     else if(a==="shoot"){
+      if(e.target.closest('[data-act="view"]')) return;
       S.busy={section:b.dataset.s, cp:b.dataset.c}; S.section=b.dataset.s; render();
       Native.takePhoto(S.variant, b.dataset.s, b.dataset.c, S.vehicle, "");
     }
@@ -879,8 +1028,10 @@ $app.addEventListener("click", e => {
       if(from==="browse") loadBrowse(S.browse.rel); else loadProgress();
       render(); toast("Photo deleted");
     }
-    else if(a==="menu"){ S.menu=true; render(); }
-    else if(a==="menuClose"){ S.menu=false; render(); }
+    else if(a==="ask"){ S.confirm=b.dataset.key; render(); }
+    else if(a==="cancelConfirm"){ S.confirm=null; render(); }
+    else if(a==="add"){ addFromInput(b.dataset.input); }
+    else if(a==="resetOwn"){ ops.resetOwn(S.variant); S.confirm=null; render(); toast(`${V().name} now uses the common checkpoints`); }
     else if(a==="openBrowse"){ S.menu=false; S.viewer=null; loadBrowse(""); S.screen="browse"; render(); window.scrollTo(0,0); }
     else if(a==="browseTo"){ loadBrowse(b.dataset.rel); render(); window.scrollTo(0,0); }
     else if(a==="browseUp"){ if(!S.browse.rel) goHome(); else { loadBrowse(S.browse.rel.split("/").slice(0,-1).join("/")); render(); } }
@@ -889,20 +1040,19 @@ $app.addEventListener("click", e => {
       S.viewer={path:ph.path, name:ph.name, url:nat("bigPreview", ph.path).url, index:i, total:list.length, from:"browse"};
       S.confirm=null; render();
     }
-    else if(a==="openStats"){ openStats(); }
-    else if(a==="statVariant"){ S.stats.variant=b.dataset.id; S.stats.color="__all"; render(); window.scrollTo(0,0); }
-    else if(a==="statBack"){ S.stats.variant=null; render(); window.scrollTo(0,0); }
-    else if(a==="ask"){ S.confirm=b.dataset.key; render(); }
-    else if(a==="cancelConfirm"){ S.confirm=null; render(); }
-    else if(a==="add"){ addFromInput(b.dataset.input); }
-    else if(a==="resetOwn"){ ops.resetOwn(S.variant); S.confirm=null; render(); toast(`${V().name} now uses the common checkpoints`); }
+    else if(a==="openStats"){ openStats(); if(S.stats) S.stats.fromHome=false; }
+    else if(a==="statVariantFromHome"){ openStats(b.dataset.id); S.stats.fromHome=true; }
+    else if(a==="statVariant"){ S.stats.variant=b.dataset.id; S.stats.fromHome=false; S.stats.color="__all"; render(); window.scrollTo(0,0); }
+    else if(a==="statBack"){ if(S.stats.fromHome) goHome(); else { S.stats.variant=null; render(); window.scrollTo(0,0); } }
     else if(a==="openZip"){
-      const now=new Date();
-      S.zip={date:todayStr(now), from:"00:00", to:`${two(now.getHours())}:${two(now.getMinutes())}`, count:null, bytes:0, busy:null, result:null, msg:""};
-      try{ S.zip.list=nat("listZips").zips; }catch(e){ S.zip.list=[]; }
+      const now=new Date(), t=`${two(now.getHours())}:${two(now.getMinutes())}`;
+      S.menu=false;
+      S.zip={fromDate:todayStr(now), fromTime:"00:00", toDate:todayStr(now), toTime:t, count:null, bytes:0, busy:null, result:null, msg:"", open:null};
+      try{ S.zip.list=nat("listZips").zips; }catch(err){ S.zip.list=[]; }
       S.screen="zip"; refreshZipCount(); render(); window.scrollTo(0,0);
     }
     else if(a==="makeZip"){ const r=zipRange(); S.zip.busy="Zipping…"; S.zip.result=null; render(); Native.makeZip(r.from, r.to, r.label); }
+    else if(a==="zipOpen"){ S.zip.open = S.zip.open===b.dataset.path ? null : b.dataset.path; render(); }
     else if(a==="shareZip"){ nat("shareZip", b.dataset.path, b.dataset.bt==="1"); }
   }catch(err){
     S.busy=null;
@@ -925,10 +1075,9 @@ $app.addEventListener("change", e => {
     render(); return;
   }
   if(S.screen!=="zip") return;
-  if(id==="zDate") S.zip.date=e.target.value || todayStr();
-  else if(id==="zFrom") S.zip.from=e.target.value || "00:00";
-  else if(id==="zTo") S.zip.to=e.target.value || "23:59";
-  else return;
+  const map={zFromDate:"fromDate", zFromTime:"fromTime", zToDate:"toDate", zToTime:"toTime"};
+  if(!map[id]) return;
+  S.zip[map[id]] = e.target.value || (id.endsWith("Time") ? (id==="zToTime"?"23:59":"00:00") : todayStr());
   try{ refreshZipCount(); }catch(err){ S.zip.msg=err.message; }
   S.zip.result=null; render();
 });
@@ -943,7 +1092,7 @@ $app.addEventListener("keydown", e => {
     S.storage = nat("storage");
     if(S.storage.granted){ loadConfig(); loadLastVehicles(); }
     render();
-    const waiting = window.Native.ready();          // a photo taken while the app was restarting
+    const waiting = window.Native.ready();
     if(waiting && waiting !== "null") window.onPhoto(waiting);
   }catch(e){
     $app.innerHTML = `<p class="err">${esc(e.message)}</p>`;

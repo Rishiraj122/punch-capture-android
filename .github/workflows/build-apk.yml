@@ -27,13 +27,13 @@ jobs:
         run: gradle --no-daemon :app:assembleRelease
 
       - name: Name the APK
-        run: cp app/build/outputs/apk/release/app-release.apk PunchCapture-v1.0.${{ github.run_number }}.apk
+        run: cp app/build/outputs/apk/release/app-release.apk MobileVision-v1.0.${{ github.run_number }}.apk
 
       - name: Publish to Releases
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
-          name: Punch Capture v1.0.${{ github.run_number }}
+          name: MobileVision.Ai v1.0.${{ github.run_number }}
           body: Download the .apk below on the Zebra and open it to install or update.
-          files: PunchCapture-v1.0.${{ github.run_number }}.apk
+          files: MobileVision-v1.0.${{ github.run_number }}.apk
           make_latest: true
