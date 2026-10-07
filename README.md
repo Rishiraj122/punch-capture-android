@@ -9,8 +9,12 @@ Offline photo capture for variant-wise checkpoint data collection. Runs on the Z
 
 New versions install over the old one. Photos are never touched by an update.
 
+## Menu (☰, home top right)
+- **Photos:** browse PunchCapture → Variant → interior/exterior → checkpoint folders, open and delete photos.
+- **Dashboard:** vehicles per variant (complete / partial), and per variant a color pie plus images per checkpoint (filter by color and date).
+
 ## Settings
-- **☰ (home, top right):** colors (shared by all variants), variants (add / remove / reorder), and the **common checkpoints** (add / remove / reorder — applies to every variant).
+- **☰ → Settings:** colors (shared by all variants), variants (add / remove / reorder), and the **common checkpoints** (add / remove / reorder — applies to every variant).
 - **⚙ (vehicle screen):** this variant's own checkpoint list — turn common ones off, add extras, reorder, or reset to the common list.
 - **New vehicle** asks for the color from a dropdown.
 

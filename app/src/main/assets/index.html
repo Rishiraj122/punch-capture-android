@@ -9,6 +9,7 @@
 /* Layout: phone-first, three screens (variants → vehicle checklist → setup); system fonts so it works with no internet */
 :root{
   --bg:#f0f2f4; --panel:#ffffff; --fg:#15191e; --muted:#5d6874; --line:#d5dbe1;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300; --s7:#4a3aa7; --s8:#e34948; --sx:#9a9893;
   --accent:#0a6ebd; --accent-ink:#ffffff; --done:#1e8a4b; --done-soft:#e1f3e8; --warn:#c8322b; --chip:#e6eaee;
   --f-ui:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   --f-num:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
@@ -16,6 +17,7 @@
 }
 @media (prefers-color-scheme:dark){:root{
   --bg:#111418; --panel:#1a1f25; --fg:#e7ebef; --muted:#94a0ac; --line:#2b333c;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767; --sx:#6b6a66;
   --accent:#3d9be6; --accent-ink:#06121c; --done:#38b06b; --done-soft:#14281c; --warn:#e5584f; --chip:#232a32;
   color-scheme:dark}}
 *{box-sizing:border-box}
@@ -92,6 +94,64 @@ input[type=text],select{width:100%;font:inherit;padding:12px;border-radius:10px;
 .edit-list .x[disabled]{opacity:.3}
 .tag{color:var(--accent)}
 .icon-btn.menu{font-size:1.2rem;padding:6px 14px}
+.menu-sheet{gap:8px}
+.menu-item{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;border:1px solid var(--line);
+  background:var(--bg);color:var(--fg);border-radius:12px;padding:14px}
+.menu-item span{font-size:.85rem;color:var(--muted)}
+.crumbs{display:flex;flex-wrap:wrap;align-items:center;gap:2px;margin-bottom:12px}
+.crumb{border:0;background:none;color:var(--accent);font:600 .88rem var(--f-ui);padding:4px 2px;word-break:break-all;text-align:left}
+.crumb:last-of-type{color:var(--fg)}
+.crumb-sep{color:var(--muted)}
+.folders{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:12px;background:var(--panel);overflow:hidden}
+.folders li+li{border-top:1px solid var(--line)}
+.folders button{width:100%;display:flex;align-items:center;gap:12px;border:0;background:none;color:var(--fg);padding:14px 12px;text-align:left;font:inherit}
+.folder-ico{width:22px;height:16px;border-radius:3px;background:var(--accent);opacity:.85;flex:0 0 auto;position:relative}
+.folder-ico::before{content:"";position:absolute;left:0;top:-4px;width:10px;height:5px;border-radius:2px 2px 0 0;background:var(--accent)}
+.folder-name{flex:1;min-width:0;word-break:break-all;font-weight:600}
+.folder-count{font:.85rem var(--f-num);color:var(--muted);font-variant-numeric:tabular-nums}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.tile{border:0;padding:0;background:var(--chip);border-radius:8px;overflow:hidden;position:relative;aspect-ratio:1;max-width:100%}
+.tile img{width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity .2s}
+.tile img.ready{opacity:1}
+.tile-cap{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.55);color:#fff;font:.66rem var(--f-num);padding:3px 5px;text-align:left}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.filters select,.filters input{flex:1;min-width:140px}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.tile-stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.tile-stat span{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.tile-stat b{font:700 1.4rem var(--f-num);font-variant-numeric:tabular-nums}
+.chart{margin-bottom:12px}
+.chart h2{margin:0;font-size:1.02rem}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.85rem;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;flex:0 0 auto}
+.hbars{display:flex;flex-direction:column;gap:6px}
+.hbar{display:grid;grid-template-columns:minmax(0,44%) 1fr auto;align-items:center;gap:10px;border:0;background:none;color:var(--fg);
+  padding:6px 0;font:inherit;text-align:left;width:100%}
+button.hbar{cursor:pointer}
+.hbar-label{font-size:.86rem;line-height:1.25;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word}
+.hbar-track{display:flex;gap:2px;height:16px;min-width:0}
+.hbar-track i{display:block;height:100%;min-width:3px}
+.hbar-track i:last-child{border-radius:0 4px 4px 0}
+.hbar-val{font:600 .88rem var(--f-num);font-variant-numeric:tabular-nums;min-width:2ch;text-align:right}
+.hbar.zero .hbar-label{color:var(--warn)}
+.hbar.zero .hbar-val{color:var(--warn)}
+.pie-wrap{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.pie{width:150px;height:150px;max-width:100%;flex:0 0 auto}
+.pie path,.pie circle{stroke:var(--panel);stroke-width:2;stroke-linejoin:round}
+.pie-legend{list-style:none;margin:0;padding:0;flex:1;min-width:150px;display:flex;flex-direction:column;gap:6px}
+.pie-legend li{display:grid;grid-template-columns:auto 1fr auto auto;gap:8px;align-items:center;font-size:.9rem}
+.pie-legend b{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.pie-legend em{font-style:normal;color:var(--muted);font:.8rem var(--f-num);min-width:4ch;text-align:right}
+.s1{background:var(--s1);fill:var(--s1)} .s2{background:var(--s2);fill:var(--s2)} .s3{background:var(--s3);fill:var(--s3)}
+.s4{background:var(--s4);fill:var(--s4)} .s5{background:var(--s5);fill:var(--s5)} .s6{background:var(--s6);fill:var(--s6)}
+.s7{background:var(--s7);fill:var(--s7)} .s8{background:var(--s8);fill:var(--s8)} .sx{background:var(--sx);fill:var(--sx)}
+.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.table-wrap table{width:100%;border-collapse:collapse;font-size:.88rem}
+.table-wrap th,.table-wrap td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+.table-wrap th:first-child,.table-wrap td:first-child{text-align:left}
+.table-wrap th{color:var(--muted);font-weight:600;font-size:.75rem;text-transform:uppercase;letter-spacing:.06em}
+.table-wrap tr:last-child td{border-bottom:0}
 .err{color:var(--warn);font-size:.9rem}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
 .chip{border:1px solid var(--line);background:var(--chip);color:var(--fg);padding:9px 13px;border-radius:999px;font-weight:600;font-size:.92rem}
@@ -109,7 +169,7 @@ input[type=date],input[type=time]{width:100%;font:inherit;padding:12px;border-ra
 <script>
 const S = { cfg:null, screen:"home", variant:null, vehicle:null, section:"interior", progress:null,
             busy:null, viewer:null, confirm:null, lastOnDisk:{}, storage:null,
-            returnTo:"home", zip:null, sheet:null };
+            returnTo:"home", zip:null, sheet:null, menu:false, browse:null, stats:null };
 const $app = document.getElementById("app");
 const SECTIONS = ["interior","exterior"];
 
@@ -227,8 +287,10 @@ function nextPending(){
 // ---------- render ----------
 function render(){
   if(S.storage && !S.storage.granted) return renderPermission();
-  ({home:renderHome, vehicle:renderVehicle, setup:renderSetup, global:renderGlobal, zip:renderZip})[S.screen]();
+  ({home:renderHome, vehicle:renderVehicle, setup:renderSetup, global:renderGlobal, zip:renderZip,
+    browse:renderBrowse, stats:renderStats})[S.screen]();
   if(S.sheet) $app.insertAdjacentHTML("beforeend", sheetHTML());
+  if(S.menu) $app.insertAdjacentHTML("beforeend", menuHTML());
 }
 
 function renderPermission(){
@@ -255,8 +317,8 @@ function renderHome(){
   }).join("");
   $app.innerHTML = `
     <header class="top"><h1>Punch Capture</h1>
-      <button class="icon-btn menu" data-act="global" aria-label="Settings">☰</button></header>
-    <div class="variants">${items || `<div class="empty">No variants yet. Add one from ☰ Settings.</div>`}</div>
+      <button class="icon-btn menu" data-act="menu" aria-label="Menu">☰</button></header>
+    <div class="variants">${items || `<div class="empty">No variants yet. Add one from ☰ → Settings.</div>`}</div>
     <p class="label">Export</p>
     <div class="card">
       <div><h2 style="margin:0;font-size:1.05rem">Zip photos</h2>
@@ -317,9 +379,9 @@ function viewerHTML(){
         <div class="row-btns"><button class="btn danger" data-act="delPhoto">Delete photo</button>
         <button class="btn ghost" data-act="cancelConfirm">Keep</button></div></div>`
       : `<div class="row-btns"><button class="btn ghost" data-act="closeViewer">Close</button>
-        <button class="btn primary" data-act="retake">Retake</button>
+        ${ph.from==="browse" ? "" : `<button class="btn primary" data-act="retake">Retake</button>`}
         <button class="btn danger" data-act="askDelPhoto">Delete</button></div>
-        <div class="name" style="opacity:.75">Retake takes a new photo and deletes this one.</div>`}
+        ${ph.from==="browse" ? "" : `<div class="name" style="opacity:.75">Retake takes a new photo and deletes this one.</div>`}`}
   </div>`;
 }
 
@@ -456,6 +518,215 @@ window.onZip = function(raw){
   if(S.screen==="zip") render();
 };
 
+
+// ---------- ☰ menu ----------
+function menuHTML(){
+  return `<div class="sheet-bg" data-act="menuClose"><div class="sheet menu-sheet" role="dialog" aria-label="Menu">
+    <button class="menu-item" data-act="openBrowse"><b>Photos</b><span>Browse Variant → Interior/Exterior → Checkpoint folders</span></button>
+    <button class="menu-item" data-act="openStats"><b>Dashboard</b><span>Vehicles per variant, colors, images per checkpoint</span></button>
+    <button class="menu-item" data-act="global"><b>Settings</b><span>Colors, variants, common checkpoints</span></button>
+  </div></div>`;
+}
+
+// ---------- folder view ----------
+const thumbCache = {};
+window.onThumb = function(path, url){
+  thumbCache[path] = url;
+  document.querySelectorAll(`img[data-path="${CSS.escape(path)}"]`).forEach(img => { img.src = url; img.classList.add("ready"); });
+};
+
+function loadBrowse(rel){
+  S.browse = nat("browse", rel);
+  const want = S.browse.photos.map(p=>p.path).filter(p=>!thumbCache[p]);
+  if(want.length) Native.requestThumbs(JSON.stringify(want));
+}
+
+function fmtTime(t){
+  const d=new Date(t);
+  return `${two(d.getDate())}/${two(d.getMonth()+1)} ${two(d.getHours())}:${two(d.getMinutes())}`;
+}
+
+function renderBrowse(){
+  const b=S.browse, parts=b.rel ? b.rel.split("/") : [];
+  const crumbs = [`<button class="crumb" data-act="browseTo" data-rel="">PunchCapture</button>`]
+    .concat(parts.map((p,i)=>`<button class="crumb" data-act="browseTo" data-rel="${esc(parts.slice(0,i+1).join("/"))}">${esc(p)}</button>`))
+    .join(`<span class="crumb-sep">/</span>`);
+  $app.innerHTML = `
+    <header class="top"><button class="icon-btn" data-act="browseUp">‹ Back</button><h1>Photos</h1></header>
+    <nav class="crumbs" aria-label="Folder path">${crumbs}</nav>
+    ${b.dirs.length ? `<ul class="folders">${b.dirs.map(d=>`<li><button data-act="browseTo" data-rel="${esc(d.rel)}">
+        <span class="folder-ico" aria-hidden="true"></span><span class="folder-name">${esc(d.name)}</span>
+        <span class="folder-count">${d.count}</span></button></li>`).join("")}</ul>` : ""}
+    ${b.photos.length ? `<p class="label">${b.photos.length} photo${b.photos.length===1?"":"s"}</p>
+      <div class="grid">${b.photos.map((p,i)=>`<button class="tile" data-act="browseView" data-i="${i}">
+        <img data-path="${esc(p.path)}" ${thumbCache[p.path] ? `src="${esc(thumbCache[p.path])}" class="ready"` : ""} alt="">
+        <span class="tile-cap">${p.vehicle ? "V"+pad3(p.vehicle)+" · " : ""}${fmtTime(p.time)}</span></button>`).join("")}</div>` : ""}
+    ${!b.dirs.length && !b.photos.length ? `<div class="empty">This folder is empty.</div>` : ""}
+    ${S.viewer ? viewerHTML() : ""}`;
+}
+
+// ---------- dashboard ----------
+const SERIES = 8;
+function colorSlot(name){            // color follows the entity: its position in the shared color list
+  const i = S.cfg.colors.findIndex(c=>c.name===name);
+  return i < 0 ? null : i;
+}
+
+function dayRange(f){
+  if(f.range==="all") return null;
+  const ds = f.range==="today" ? todayStr() : f.date;
+  const [y,m,d]=ds.split("-").map(Number);
+  return [new Date(y,m-1,d).getTime(), new Date(y,m-1,d,23,59,59,999).getTime()];
+}
+
+function statsModel(){
+  const st=S.stats, rng=dayRange(st);
+  const photos = st.raw.filter(p => !rng || (p.t>=rng[0] && p.t<=rng[1]));
+  const vehicles = {};
+  photos.forEach(p => {
+    if(!p.n) return;
+    const k=p.v+"|"+p.n;
+    (vehicles[k] = vehicles[k] || {v:p.v, n:p.n, col:p.col, cps:new Set()}).cps.add(p.s+"/"+p.c);
+  });
+  const order = S.cfg.variants.map(v=>v.id);
+  photos.forEach(p => { if(!order.includes(p.v)) order.push(p.v); });
+  const byVariant = order.map(id => {
+    const v=findV(S.cfg,id), need = v ? SECTIONS.flatMap(s=>v[s].map(c=>s+"/"+c.id)) : [];
+    const vs = Object.values(vehicles).filter(x=>x.v===id);
+    const complete = vs.filter(x => need.length && need.every(k=>x.cps.has(k))).length;
+    return {id, name: v ? v.name : id, complete, partial: vs.length-complete, vehicles: vs,
+            photos: photos.filter(p=>p.v===id)};
+  });
+  return {photos, vehicles:Object.values(vehicles), byVariant};
+}
+
+function hbar(label, segs, max, act){
+  const total = segs.reduce((a,s)=>a+s.n,0);
+  return `<${act?`button data-act="${act.a}" data-id="${esc(act.id)}"`:"div"} class="hbar">
+    <span class="hbar-label">${esc(label)}</span>
+    <span class="hbar-track">${segs.filter(s=>s.n).map(s=>`<i class="${s.cls}" style="width:${max? s.n/max*100 : 0}%"></i>`).join("")}</span>
+    <span class="hbar-val">${total}</span></${act?"button":"div"}>`;
+}
+
+function pieSVG(slices){
+  const total=slices.reduce((a,s)=>a+s.n,0), R=70, C=80;
+  if(!total) return "";
+  if(slices.filter(s=>s.n).length===1){
+    const s=slices.find(x=>x.n);
+    return `<svg viewBox="0 0 160 160" class="pie" role="img" aria-label="${esc(s.label)} 100%"><circle cx="${C}" cy="${C}" r="${R}" class="${s.cls}"/></svg>`;
+  }
+  let a=-Math.PI/2, paths="";
+  slices.filter(s=>s.n).forEach(s=>{
+    const a2=a+s.n/total*Math.PI*2, large=(a2-a)>Math.PI?1:0;
+    const x1=C+R*Math.cos(a), y1=C+R*Math.sin(a), x2=C+R*Math.cos(a2), y2=C+R*Math.sin(a2);
+    paths+=`<path d="M${C},${C} L${x1.toFixed(2)},${y1.toFixed(2)} A${R},${R} 0 ${large} 1 ${x2.toFixed(2)},${y2.toFixed(2)} Z" class="${s.cls}"/>`;
+    a=a2;
+  });
+  return `<svg viewBox="0 0 160 160" class="pie" role="img" aria-label="Vehicles by color">${paths}</svg>`;
+}
+
+function statsFilterHTML(){
+  const st=S.stats;
+  return `<div class="filters">
+    <select id="statRange" aria-label="Date range">
+      <option value="all" ${st.range==="all"?"selected":""}>All time</option>
+      <option value="today" ${st.range==="today"?"selected":""}>Today</option>
+      <option value="date" ${st.range==="date"?"selected":""}>Pick a date…</option>
+    </select>
+    ${st.range==="date" ? `<input type="date" id="statDate" value="${st.date}" max="${todayStr()}" aria-label="Date">` : ""}
+  </div>`;
+}
+
+function renderStats(){
+  const st=S.stats, m=statsModel();
+  if(st.variant) return renderStatsVariant(m);
+  const max=Math.max(1,...m.byVariant.map(r=>r.complete+r.partial));
+  const rows=m.byVariant.map(r=>hbar(r.name,[{n:r.complete,cls:"s1"},{n:r.partial,cls:"s2"}],max,{a:"statVariant",id:r.id})).join("");
+  $app.innerHTML = `
+    <header class="top"><button class="icon-btn" data-act="home">‹ Back</button><h1>Dashboard</h1></header>
+    ${statsFilterHTML()}
+    <div class="tiles">
+      <div class="tile-stat"><span>Vehicles</span><b>${m.vehicles.length}</b></div>
+      <div class="tile-stat"><span>Photos</span><b>${m.photos.length}</b></div>
+      <div class="tile-stat"><span>Complete</span><b>${m.byVariant.reduce((a,r)=>a+r.complete,0)}</b></div>
+    </div>
+    <div class="card chart">
+      <h2>Vehicles per variant</h2>
+      <div class="legend"><span><i class="sw s1"></i>Complete</span><span><i class="sw s2"></i>Partial</span></div>
+      <div class="hbars">${rows || `<div class="empty">No variants yet.</div>`}</div>
+      <div class="meta">Complete = every checkpoint of that variant has at least one photo. Tap a variant for colors and checkpoints.</div>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Variant</th><th>Complete</th><th>Partial</th><th>Photos</th></tr></thead>
+      <tbody>${m.byVariant.map(r=>`<tr><td>${esc(r.name)}</td><td>${r.complete}</td><td>${r.partial}</td><td>${r.photos.length}</td></tr>`).join("")}</tbody>
+    </table></div>`;
+}
+
+function renderStatsVariant(m){
+  const st=S.stats, r=m.byVariant.find(x=>x.id===st.variant) || {name:st.variant, vehicles:[], photos:[], complete:0, partial:0};
+  const v=findV(S.cfg, st.variant);
+  // pie: vehicles per color
+  const counts={}; r.vehicles.forEach(x=>{ const k=x.col||""; counts[k]=(counts[k]||0)+1; });
+  let slices = Object.keys(counts).map(k=>{
+    const slot = k ? colorSlot(k) : null;
+    return {label:k||"Not set", n:counts[k], slot};
+  }).sort((a,b)=> (a.slot??99)-(b.slot??99) || a.label.localeCompare(b.label));
+  const named = slices.filter(s=>s.slot!==null && s.slot<SERIES);
+  const rest = slices.filter(s=>!(s.slot!==null && s.slot<SERIES));
+  slices = named.map(s=>({...s, cls:"s"+(s.slot+1)}));
+  const restN = rest.reduce((a,s)=>a+s.n,0);
+  if(restN) slices.push({label: rest.length===1 ? rest[0].label : "Other / not set", n:restN, cls:"sx"});
+  const totalV = r.vehicles.length;
+
+  // bars: images per checkpoint, optionally for one color
+  const colorSel = st.color;
+  const ph = r.photos.filter(p => colorSel==="__all" || (colorSel==="__none" ? !p.col : p.col===colorSel));
+  const per = {}; ph.forEach(p=>{ const k=p.s+"/"+p.c; per[k]=(per[k]||0)+1; });
+  const sectionRows = s => {
+    const list = v ? v[s].map(c=>({id:c.id, name:c.name})) : [];
+    Object.keys(per).forEach(k=>{ const [sec,id]=k.split("/"); if(sec===s && !list.some(x=>x.id===id)) list.push({id, name:id+" (removed)"}); });
+    return list;
+  };
+  const allRows = SECTIONS.flatMap(s=>sectionRows(s).map(c=>per[s+"/"+c.id]||0));
+  const max = Math.max(1, ...allRows);
+  const usedColors = [...new Set(r.vehicles.map(x=>x.col).filter(Boolean))];
+  const colorOpts = S.cfg.colors.map(c=>c.name).concat(usedColors.filter(c=>colorSlot(c)===null));
+
+  $app.innerHTML = `
+    <header class="top"><button class="icon-btn" data-act="statBack">‹ Back</button><h1>${esc(r.name)}</h1></header>
+    ${statsFilterHTML()}
+    <div class="tiles">
+      <div class="tile-stat"><span>Vehicles</span><b>${totalV}</b></div>
+      <div class="tile-stat"><span>Complete</span><b>${r.complete}</b></div>
+      <div class="tile-stat"><span>Photos</span><b>${r.photos.length}</b></div>
+    </div>
+    <div class="card chart">
+      <h2>Vehicles by color</h2>
+      ${totalV ? `<div class="pie-wrap">${pieSVG(slices)}
+        <ul class="pie-legend">${slices.map(s=>`<li><i class="sw ${s.cls}"></i><span>${esc(s.label)}</span><b>${s.n}</b><em>${Math.round(s.n/totalV*100)}%</em></li>`).join("")}</ul></div>`
+        : `<div class="empty">No vehicles in this range.</div>`}
+    </div>
+    <div class="card chart">
+      <h2>Images per checkpoint</h2>
+      <select id="statColor" aria-label="Color">
+        <option value="__all" ${colorSel==="__all"?"selected":""}>All colors</option>
+        ${colorOpts.map(c=>`<option value="${esc(c)}" ${colorSel===c?"selected":""}>${esc(c)}</option>`).join("")}
+        <option value="__none" ${colorSel==="__none"?"selected":""}>Color not set</option>
+      </select>
+      ${SECTIONS.map(s=>{ const rows=sectionRows(s); return `<p class="label">${s}</p>
+        <div class="hbars">${rows.map(c=>{ const n=per[s+"/"+c.id]||0;
+          return hbar(c.name,[{n,cls:"s1"}],max).replace('class="hbar"', `class="hbar${n?"":" zero"}"`); }).join("") || `<div class="empty">No ${s} checkpoints.</div>`}</div>`; }).join("")}
+      <div class="meta">${ph.length} photo${ph.length===1?"":"s"}${colorSel==="__all"?"":" for this color"}. Checkpoints at 0 still need photos.</div>
+    </div>`;
+}
+
+function openStats(){
+  S.stats = S.stats || {range:"all", date:todayStr(), variant:null, color:"__all"};
+  S.stats.raw = nat("stats").photos;
+  S.stats.variant = null;
+  S.screen="stats"; S.menu=false; render(); window.scrollTo(0,0);
+}
+
 // ---------- navigation ----------
 function openVehicle(vid, n){
   S.variant=vid; S.vehicle=n; S.section="interior"; S.screen="vehicle"; S.viewer=null; S.confirm=null; S.sheet=null;
@@ -480,10 +751,13 @@ function setupBack(){
 
 // Android back button: close overlays first, then go back a screen, then leave the app.
 window.goBack = function(){
+  if(S.menu){ S.menu=false; render(); return true; }
   if(S.sheet){ S.sheet=null; render(); return true; }
   if(S.viewer){ S.viewer=null; S.confirm=null; render(); return true; }
   if(S.confirm){ S.confirm=null; render(); return true; }
   if(S.screen==="setup"){ setupBack(); return true; }
+  if(S.screen==="browse" && S.browse.rel){ loadBrowse(S.browse.rel.split("/").slice(0,-1).join("/")); render(); return true; }
+  if(S.screen==="stats" && S.stats.variant){ S.stats.variant=null; render(); return true; }
   if(S.screen!=="home"){ goHome(); return true; }
   return false;
 };
@@ -546,7 +820,7 @@ $app.addEventListener("click", e => {
     if(listAction(a, b.dataset.id)) return;
     if(a==="grant"){ Native.requestStorage(); }
     else if(a==="home"){ goHome(); }
-    else if(a==="global"){ S.screen="global"; S.confirm=null; render(); window.scrollTo(0,0); }
+    else if(a==="global"){ S.menu=false; S.screen="global"; S.confirm=null; render(); window.scrollTo(0,0); }
     else if(a==="new"){
       if(S.cfg.colors.length){ S.sheet={vid:b.dataset.v, color:"", change:false}; render(); }
       else startVehicle(b.dataset.v, "");
@@ -580,7 +854,24 @@ $app.addEventListener("click", e => {
       Native.takePhoto(S.variant, ph.section, ph.cp, S.vehicle, ph.path);
     }
     else if(a==="askDelPhoto"){ S.confirm="photo"; render(); }
-    else if(a==="delPhoto"){ nat("deletePhoto", S.viewer.path); S.viewer=null; S.confirm=null; loadProgress(); render(); toast("Photo deleted"); }
+    else if(a==="delPhoto"){
+      const from=S.viewer.from; nat("deletePhoto", S.viewer.path); S.viewer=null; S.confirm=null;
+      if(from==="browse") loadBrowse(S.browse.rel); else loadProgress();
+      render(); toast("Photo deleted");
+    }
+    else if(a==="menu"){ S.menu=true; render(); }
+    else if(a==="menuClose"){ S.menu=false; render(); }
+    else if(a==="openBrowse"){ S.menu=false; S.viewer=null; loadBrowse(""); S.screen="browse"; render(); window.scrollTo(0,0); }
+    else if(a==="browseTo"){ loadBrowse(b.dataset.rel); render(); window.scrollTo(0,0); }
+    else if(a==="browseUp"){ if(!S.browse.rel) goHome(); else { loadBrowse(S.browse.rel.split("/").slice(0,-1).join("/")); render(); } }
+    else if(a==="browseView"){
+      const i=+b.dataset.i, list=S.browse.photos, ph=list[i];
+      S.viewer={path:ph.path, name:ph.name, url:nat("bigPreview", ph.path).url, index:i, total:list.length, from:"browse"};
+      S.confirm=null; render();
+    }
+    else if(a==="openStats"){ openStats(); }
+    else if(a==="statVariant"){ S.stats.variant=b.dataset.id; S.stats.color="__all"; render(); window.scrollTo(0,0); }
+    else if(a==="statBack"){ S.stats.variant=null; render(); window.scrollTo(0,0); }
     else if(a==="ask"){ S.confirm=b.dataset.key; render(); }
     else if(a==="cancelConfirm"){ S.confirm=null; render(); }
     else if(a==="add"){ addFromInput(b.dataset.input); }
@@ -604,6 +895,13 @@ $app.addEventListener("change", e => {
     S.sheet.color=e.target.value;
     const ok=document.querySelector('[data-act="sheetOk"]'); if(ok) ok.disabled=!S.sheet.color;
     return;
+  }
+  if(S.screen==="stats"){
+    if(id==="statRange") S.stats.range=e.target.value;
+    else if(id==="statDate") S.stats.date=e.target.value || todayStr();
+    else if(id==="statColor") S.stats.color=e.target.value;
+    else return;
+    render(); return;
   }
   if(S.screen!=="zip") return;
   if(id==="zDate") S.zip.date=e.target.value || todayStr();

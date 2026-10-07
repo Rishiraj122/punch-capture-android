@@ -725,6 +725,39 @@ public class MainActivity extends Activity {
         startActivity(Intent.createChooser(i, "Send zip"));
     }
 
+    // ---------- browsing & stats ----------
+    private static boolean isPhoto(File f) {
+        String n = f.getName().toLowerCase(Locale.US);
+        return f.isFile() && (n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".png"));
+    }
+
+    private int countPhotos(File dir) {
+        int[] n = {0};
+        walk(dir, f -> { if (isPhoto(f)) n[0]++; });
+        return n[0];
+    }
+
+    /** Resolves a path relative to PunchCapture/, refusing anything outside it. */
+    private File underRoot(String rel) throws IOException {
+        File f = rel == null || rel.isEmpty() ? root() : new File(root(), rel);
+        String r = root().getCanonicalPath(), c = f.getCanonicalPath();
+        if (!c.equals(r) && !c.startsWith(r + File.separator)) throw new UserError("Folder not found.");
+        return f;
+    }
+
+    private void thumbsAsync(JSONArray paths) {
+        new Thread(() -> {
+            for (int i = 0; i < paths.length(); i++) {
+                String p = paths.optString(i);
+                File f = new File(p);
+                if (!isPhoto(f)) continue;
+                String url = fileUrl(preview(f, 240));
+                runOnUiThread(() -> web.evaluateJavascript(
+                        "window.onThumb && window.onThumb(" + JSONObject.quote(p) + "," + JSONObject.quote(url) + ")", null));
+            }
+        }).start();
+    }
+
     // ---------- bridge for the page ----------
     private class Bridge {
 
@@ -798,6 +831,71 @@ public class MainActivity extends Activity {
                     try { shareFile(f); } catch (Exception e) { zipDone(err("Could not open sharing: " + e.getMessage())); }
                 });
                 return new JSONObject().put("ok", true);
+            });
+        }
+
+        /** Folder view: sub-folders (with photo counts) and photos of one folder under PunchCapture/. */
+        @JavascriptInterface
+        public String browse(String rel) {
+            return safe(() -> {
+                File dir = underRoot(rel);
+                if (!dir.isDirectory()) throw new UserError("Folder not found.");
+                boolean top = dir.getCanonicalPath().equals(root().getCanonicalPath());
+                JSONArray dirs = new JSONArray(), photos = new JSONArray();
+                File[] list = dir.listFiles();
+                List<File> items = new ArrayList<>();
+                if (list != null) Collections.addAll(items, list);
+                Collections.sort(items);
+                for (File f : items) {
+                    if (f.isDirectory()) {
+                        dirs.put(new JSONObject().put("name", f.getName()).put("rel", relOf(f)).put("count", countPhotos(f)));
+                    } else if (!top && isPhoto(f)) {
+                        photos.put(new JSONObject().put("path", f.getAbsolutePath()).put("name", f.getName())
+                                .put("time", f.lastModified()).put("vehicle", vehicleOf(f)));
+                    }
+                }
+                return new JSONObject().put("rel", top ? "" : relOf(dir)).put("dirs", dirs).put("photos", photos);
+            });
+        }
+
+        /** Thumbnails are made in the background and sent to window.onThumb(path, url) one by one. */
+        @JavascriptInterface
+        public void requestThumbs(String jsonPaths) {
+            try { thumbsAsync(new JSONArray(jsonPaths)); } catch (JSONException ignored) { }
+        }
+
+        /** Every photo with variant, section, checkpoint, vehicle, color and time, for the dashboard. */
+        @JavascriptInterface
+        public String stats() {
+            return safe(() -> {
+                JSONObject colors = loadVehicles();
+                JSONArray out = new JSONArray();
+                File[] variants = root().listFiles();
+                if (variants == null) return new JSONObject().put("photos", out);
+                for (File vdir : variants) {
+                    if (!vdir.isDirectory()) continue;
+                    String vid = vdir.getName();
+                    JSONObject vc = colors.optJSONObject(vid);
+                    for (String sec : SECTIONS) {
+                        File[] cps = new File(vdir, sec).listFiles();
+                        if (cps == null) continue;
+                        for (File cdir : cps) {
+                            if (!cdir.isDirectory()) continue;
+                            String fn = cdir.getName(), suffix = "_" + vid;
+                            String cid = fn.endsWith(suffix) ? fn.substring(0, fn.length() - suffix.length()) : fn;
+                            File[] ph = cdir.listFiles();
+                            if (ph == null) continue;
+                            for (File f : ph) {
+                                if (!isPhoto(f)) continue;
+                                int veh = vehicleOf(f);
+                                out.put(new JSONObject().put("v", vid).put("s", sec).put("c", cid).put("n", veh)
+                                        .put("col", vc == null ? "" : vc.optString(String.valueOf(veh), ""))
+                                        .put("t", f.lastModified()));
+                            }
+                        }
+                    }
+                }
+                return new JSONObject().put("photos", out);
             });
         }
 
