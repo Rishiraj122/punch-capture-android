@@ -152,6 +152,8 @@ button.hbar{cursor:pointer}
 .table-wrap th:first-child,.table-wrap td:first-child{text-align:left}
 .table-wrap th{color:var(--muted);font-weight:600;font-size:.75rem;text-transform:uppercase;letter-spacing:.06em}
 .table-wrap tr:last-child td{border-bottom:0}
+.btn.send{padding:11px 12px;font-size:.92rem}
+.edit-list.zips li{align-items:flex-start}
 .err{color:var(--warn);font-size:.9rem}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
 .chip{border:1px solid var(--line);background:var(--chip);color:var(--fg);padding:9px 13px;border-radius:999px;font-weight:600;font-size:.92rem}
@@ -322,7 +324,7 @@ function renderHome(){
     <p class="label">Export</p>
     <div class="card">
       <div><h2 style="margin:0;font-size:1.05rem">Zip photos</h2>
-      <div class="meta">Pick a date and time range. The zip keeps the variant / checkpoint folders and goes to Download/PunchCapture_Zips.</div></div>
+      <div class="meta">Pick a date and time range, then send it by Bluetooth or copy it over USB from Download/PunchCapture_Zips.</div></div>
       <button class="btn primary" data-act="openZip">Zip photos…</button>
     </div>
     <p class="meta" style="margin-top:16px">Saving to <span class="cp-file">${esc(S.storage ? S.storage.root : "")}</span><br>
@@ -504,17 +506,35 @@ function renderZip(){
     ${z.result ? `<div class="card" style="margin-top:12px;border-color:var(--done)">
         <div><b>Zip ready</b> · ${z.result.count} photos · ${mb(z.result.bytes)}</div>
         <div class="cp-file">${esc(z.result.path)}</div>
-        <div class="meta">Copy it over USB from Download/PunchCapture_Zips, or send it to another phone.</div>
-        <button class="btn ghost" data-act="shareZip">Send zip…</button>
+        ${sendButtons(z.result.path, z.result.bytes)}
       </div>` : ""}
-    <p class="meta" style="margin-top:12px">Photos are matched by the time they were taken (or last retaken). The zip also includes capture_log.csv, vehicles.csv and config.json.</p>`;
+    ${z.list && z.list.length ? `<p class="label">Recent zips</p>
+      <ul class="edit-list zips">${z.list.map(f=>`<li><div style="flex:1;min-width:0">
+          <div class="cp-file" style="color:var(--fg)">${esc(f.name)}</div>
+          <div class="meta">${mb(f.bytes)} · ${fmtTime(f.time)}</div>
+          ${sendButtons(f.path, f.bytes, true)}</div></li>`).join("")}</ul>` : ""}
+    <p class="meta" style="margin-top:12px">The zip keeps Variant / Color / interior-exterior / checkpoint folders. Photos are matched by the time they were taken (or last retaken). The zip also includes capture_log.csv, vehicles.csv and config.json.</p>`;
+}
+
+// Bluetooth moves roughly 100–200 KB/s, so big zips take a while; say so up front.
+function btEstimate(bytes){
+  const min = bytes / 150e3 / 60;
+  return min < 1 ? "under a minute" : min < 60 ? `about ${Math.round(min)} min` : `about ${(min/60).toFixed(1)} hours`;
+}
+function sendButtons(path, bytes, compact){
+  return `<div class="row-btns" style="margin-top:${compact?6:0}px">
+      <button class="btn ${compact?"ghost":"primary"} send" data-act="shareZip" data-bt="1" data-path="${esc(path)}">Send via Bluetooth</button>
+      <button class="btn ghost send" data-act="shareZip" data-bt="0" data-path="${esc(path)}">Other apps…</button>
+    </div>
+    ${compact ? "" : `<div class="meta">Bluetooth: ${btEstimate(bytes)} for this zip. Pair the other device first; it has to accept the file.
+      For big zips, USB (Download/PunchCapture_Zips) or Quick Share under "Other apps" is much faster.</div>`}`;
 }
 
 window.onZipProgress = function(done,total){ if(S.zip){ S.zip.busy=`Zipping ${done} of ${total}…`; if(S.screen==="zip") render(); } };
 window.onZip = function(raw){
   const r=JSON.parse(raw); if(!S.zip) return;
   S.zip.busy=null;
-  if(r.error){ toast(r.error); } else { S.zip.result=r; buzz(40); toast("Zip saved"); }
+  if(r.error){ toast(r.error); } else { S.zip.result=r; buzz(40); toast("Zip saved"); try{ S.zip.list=nat("listZips").zips.filter(f=>f.path!==r.path); }catch(e){} }
   if(S.screen==="zip") render();
 };
 
@@ -879,10 +899,11 @@ $app.addEventListener("click", e => {
     else if(a==="openZip"){
       const now=new Date();
       S.zip={date:todayStr(now), from:"00:00", to:`${two(now.getHours())}:${two(now.getMinutes())}`, count:null, bytes:0, busy:null, result:null, msg:""};
+      try{ S.zip.list=nat("listZips").zips; }catch(e){ S.zip.list=[]; }
       S.screen="zip"; refreshZipCount(); render(); window.scrollTo(0,0);
     }
     else if(a==="makeZip"){ const r=zipRange(); S.zip.busy="Zipping…"; S.zip.result=null; render(); Native.makeZip(r.from, r.to, r.label); }
-    else if(a==="shareZip"){ nat("shareZip", S.zip.result.path); }
+    else if(a==="shareZip"){ nat("shareZip", b.dataset.path, b.dataset.bt==="1"); }
   }catch(err){
     S.busy=null;
     showErr(err.message);

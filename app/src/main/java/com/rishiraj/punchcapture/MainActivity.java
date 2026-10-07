@@ -262,31 +262,25 @@ public class MainActivity extends Activity {
         return best[0];
     }
 
-    /** After a vehicle's color changes, rename its photos so the color in the name stays right. */
+    /** After a vehicle's color changes, move its photos to the new color folder and fix the color in their names. */
     private int renameForColor(String vid, int vehicle, String color) {
         List<File> mine = new ArrayList<>();
-        walk(new File(root(), vid), f -> {
-            if (f.getName().toLowerCase(Locale.US).endsWith(".jpg") && vehicleOf(f) == vehicle) mine.add(f);
-        });
+        File vdir = new File(root(), vid);
+        walk(vdir, f -> { if (isPhoto(f) && vehicleOf(f) == vehicle) mine.add(f); });
         int n = 0;
         synchronized (lock) {
             for (File f : mine) {
-                File folder = f.getParentFile();
-                String fn = folder.getName(), suffix = "_" + vid;
-                if (!fn.endsWith(suffix)) continue;
-                String cid = fn.substring(0, fn.length() - suffix.length());
-                Matcher m = STAMP_RE.matcher(f.getName());
-                if (!m.matches() || !f.getName().startsWith(vid + "_" + cid + "_")) continue;
-                File to = new File(folder, vid + "_" + cid + "_" + colorPart(color) + "_" + m.group(2) + ".jpg");
-                if (to.equals(f) || to.exists()) continue;
-                String oldRel = relOf(f);
-                if (f.renameTo(to)) {
-                    try {
-                        index().remove(oldRel);
-                        index().put(relOf(to), vehicle);
-                    } catch (JSONException ignored) { }
-                    scan(f, to);
+                File cdir = f.getParentFile(), secDir = cdir.getParentFile();
+                String sec = secDir.getName();
+                if (!"interior".equals(sec) && !"exterior".equals(sec)) continue;
+                String cid = cidFromFolder(cdir.getName(), vid);
+                String name = f.getName();
+                Matcher m = STAMP_RE.matcher(name);
+                if (m.matches() && name.startsWith(vid + "_" + cid + "_"))
+                    name = vid + "_" + cid + "_" + colorPart(color) + "_" + m.group(2) + ".jpg";
+                if (movePhoto(f, new File(cpFolder(vid, color, sec, cid), name), vehicle)) {
                     n++;
+                    pruneEmpty(cdir, vdir);
                 }
             }
         }
@@ -305,27 +299,74 @@ public class MainActivity extends Activity {
         }
     }
 
-    /** Checkpoint folder is named <checkpoint>_<variant>, e.g. orvm_left_Punch_Pure. */
-    private File cpFolder(String vid, String section, String cid) {
-        File parent = new File(root(), vid + "/" + section);
-        File folder = new File(parent, cid + "_" + vid);
-        File old = new File(parent, cid);                 // layout used by v1.0.1
-        if (old.isDirectory()) {
-            synchronized (lock) {
-                if (!folder.exists()) {
-                    if (old.renameTo(folder)) scanTree(folder);
-                } else {
-                    File[] list = old.listFiles();
-                    if (list != null) for (File f : list) {
-                        File to = new File(folder, f.getName());
-                        if (!to.exists() && f.renameTo(to)) scan(to, f);
+    /** PunchCapture/<Variant>/<Color>/<interior|exterior>/<checkpoint>_<Variant>/ */
+    private File cpFolder(String vid, String color, String section, String cid) {
+        return new File(root(), vid + "/" + colorPart(color) + "/" + section + "/" + cid + "_" + vid);
+    }
+
+    private static String cidFromFolder(String folderName, String vid) {
+        String suffix = "_" + vid;
+        return folderName.endsWith(suffix) ? folderName.substring(0, folderName.length() - suffix.length()) : folderName;
+    }
+
+    /** Removes empty folders from dir upward, stopping at (not removing) stop. */
+    private static void pruneEmpty(File dir, File stop) {
+        while (dir != null && !dir.equals(stop)) {
+            String[] left = dir.list();
+            if (left == null || left.length > 0 || !dir.delete()) return;
+            dir = dir.getParentFile();
+        }
+    }
+
+    /** Moves one photo to a new folder/name, keeping its vehicle in the index. */
+    private boolean movePhoto(File f, File to, int vehicle) {
+        if (to.equals(f)) return false;
+        if (to.exists()) return false;
+        to.getParentFile().mkdirs();
+        String oldRel = relOf(f);
+        if (!f.renameTo(to)) return false;
+        try {
+            index().remove(oldRel);
+            if (vehicle > 0) index().put(relOf(to), vehicle);
+        } catch (JSONException ignored) { }
+        scan(f, to);
+        return true;
+    }
+
+    private volatile boolean layoutChecked = false;
+
+    /** Photos saved before v1.0.6 sit in <Variant>/<section>/<checkpoint folder>/; move them under their color folder. */
+    private void migrateLayout() {
+        if (layoutChecked || !hasStorage()) return;
+        layoutChecked = true;
+        File[] variants = root().listFiles();
+        if (variants == null) return;
+        int moved = 0;
+        synchronized (lock) {
+            for (File vdir : variants) {
+                if (!vdir.isDirectory()) continue;
+                String vid = vdir.getName();
+                for (String sec : SECTIONS) {
+                    File secDir = new File(vdir, sec);
+                    File[] cps = secDir.listFiles();
+                    if (cps == null) continue;
+                    for (File cdir : cps) {
+                        if (!cdir.isDirectory()) continue;
+                        String cid = cidFromFolder(cdir.getName(), vid);
+                        File[] photos = cdir.listFiles();
+                        if (photos != null) for (File f : photos) {
+                            if (!isPhoto(f)) continue;
+                            int veh = vehicleOf(f);
+                            File to = new File(cpFolder(vid, vehicleColor(vid, veh), sec, cid), f.getName());
+                            if (movePhoto(f, to, veh)) moved++;
+                        }
+                        pruneEmpty(cdir, vdir);
                     }
-                    String[] left = old.list();
-                    if (left != null && left.length == 0) old.delete();
+                    pruneEmpty(secDir, vdir);
                 }
             }
         }
-        return folder;
+        if (moved > 0) saveIndex();
     }
 
     private void scanTree(File dir) {
@@ -335,7 +376,7 @@ public class MainActivity extends Activity {
     }
 
     private List<File> photosFor(String vid, String section, String cid, int vehicle) {
-        File folder = cpFolder(vid, section, cid);
+        File folder = cpFolder(vid, vehicleColor(vid, vehicle), section, cid);
         List<File> out = new ArrayList<>();
         File[] list = folder.listFiles();
         if (list == null) return out;
@@ -471,11 +512,11 @@ public class MainActivity extends Activity {
     /** Saves the new shot. With replacePath set, the new shot replaces that photo (old file removed). */
     private String storePhoto(String vid, String section, String cid, int vehicle, String replacePath, File tmp) {
         try {
-            File folder = cpFolder(vid, section, cid);
+            String color = vehicleColor(vid, vehicle);
+            File folder = cpFolder(vid, color, section, cid);
             File target;
             File old = null;
             boolean replaced = false;
-            String color = vehicleColor(vid, vehicle);
             synchronized (lock) {
                 folder.mkdirs();
                 if (replacePath != null && !replacePath.isEmpty()) {
@@ -716,12 +757,24 @@ public class MainActivity extends Activity {
         runOnUiThread(() -> web.evaluateJavascript("window.onZip && window.onZip(" + JSONObject.quote(json) + ")", null));
     }
 
-    private void shareFile(File f) {
+    /** bluetooth=true opens the Bluetooth sender directly; otherwise (or if it can't be found) the share sheet. */
+    private void shareFile(File f, boolean bluetooth) {
         Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".files", f);
         Intent i = new Intent(Intent.ACTION_SEND);
         i.setType("application/zip");
         i.putExtra(Intent.EXTRA_STREAM, uri);
         i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        if (bluetooth) {
+            for (android.content.pm.ResolveInfo r : getPackageManager().queryIntentActivities(i, 0)) {
+                String pkg = r.activityInfo.packageName;
+                if (pkg.toLowerCase(Locale.US).contains("bluetooth")) {
+                    Intent bt = new Intent(i);
+                    bt.setClassName(pkg, r.activityInfo.name);
+                    try { startActivity(bt); return; } catch (Exception ignored) { }
+                }
+            }
+            zipDone(err("Bluetooth sharing wasn't found on this device, so the share menu opened instead. Pick Bluetooth there if it's listed."));
+        }
         startActivity(Intent.createChooser(i, "Send zip"));
     }
 
@@ -780,7 +833,9 @@ public class MainActivity extends Activity {
         public void requestStorage() { runOnUiThread(MainActivity.this::askStorage); }
 
         @JavascriptInterface
-        public String getConfig() { return safe(MainActivity.this::loadConfig); }
+        public String getConfig() {
+            return safe(() -> { migrateLayout(); return loadConfig(); });
+        }
 
         /** The page edits the whole config (variants, common checkpoints, colors) and saves it here. */
         @JavascriptInterface
@@ -822,13 +877,32 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
-        public String shareZip(String path) {
+        public String listZips() {
+            return safe(() -> {
+                JSONArray out = new JSONArray();
+                File[] list = zipDir().listFiles();
+                if (list != null) {
+                    List<File> zips = new ArrayList<>();
+                    for (File f : list) if (f.isFile() && f.getName().endsWith(".zip")) zips.add(f);
+                    Collections.sort(zips, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
+                    for (int i = 0; i < Math.min(10, zips.size()); i++) {
+                        File f = zips.get(i);
+                        out.put(new JSONObject().put("path", f.getAbsolutePath()).put("name", f.getName())
+                                .put("bytes", f.length()).put("time", f.lastModified()));
+                    }
+                }
+                return new JSONObject().put("zips", out);
+            });
+        }
+
+        @JavascriptInterface
+        public String shareZip(String path, boolean bluetooth) {
             return safe(() -> {
                 File f = new File(path);
                 if (!f.getCanonicalPath().startsWith(zipDir().getCanonicalPath() + File.separator) || !f.isFile())
                     throw new UserError("Zip not found.");
                 runOnUiThread(() -> {
-                    try { shareFile(f); } catch (Exception e) { zipDone(err("Could not open sharing: " + e.getMessage())); }
+                    try { shareFile(f, bluetooth); } catch (Exception e) { zipDone(err("Could not open sharing: " + e.getMessage())); }
                 });
                 return new JSONObject().put("ok", true);
             });
@@ -876,23 +950,16 @@ public class MainActivity extends Activity {
                     if (!vdir.isDirectory()) continue;
                     String vid = vdir.getName();
                     JSONObject vc = colors.optJSONObject(vid);
-                    for (String sec : SECTIONS) {
-                        File[] cps = new File(vdir, sec).listFiles();
-                        if (cps == null) continue;
-                        for (File cdir : cps) {
-                            if (!cdir.isDirectory()) continue;
-                            String fn = cdir.getName(), suffix = "_" + vid;
-                            String cid = fn.endsWith(suffix) ? fn.substring(0, fn.length() - suffix.length()) : fn;
-                            File[] ph = cdir.listFiles();
-                            if (ph == null) continue;
-                            for (File f : ph) {
-                                if (!isPhoto(f)) continue;
-                                int veh = vehicleOf(f);
-                                out.put(new JSONObject().put("v", vid).put("s", sec).put("c", cid).put("n", veh)
-                                        .put("col", vc == null ? "" : vc.optString(String.valueOf(veh), ""))
-                                        .put("t", f.lastModified()));
-                            }
-                        }
+                    List<File> all = new ArrayList<>();
+                    walk(vdir, f -> { if (isPhoto(f)) all.add(f); });
+                    for (File f : all) {
+                        File cdir = f.getParentFile();
+                        String sec = cdir.getParentFile().getName();
+                        if (!"interior".equals(sec) && !"exterior".equals(sec)) continue;
+                        int veh = vehicleOf(f);
+                        out.put(new JSONObject().put("v", vid).put("s", sec).put("c", cidFromFolder(cdir.getName(), vid))
+                                .put("n", veh).put("col", vc == null ? "" : vc.optString(String.valueOf(veh), ""))
+                                .put("t", f.lastModified()));
                     }
                 }
                 return new JSONObject().put("photos", out);

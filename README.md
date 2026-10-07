@@ -24,14 +24,14 @@ Built-in, photo-only, flash always off. Photos are saved upright in their pixels
 ## Where photos go
 ```
 Internal storage/PunchCapture/
-  <Variant>/interior/<checkpoint>_<Variant>/<Variant>_<checkpoint>_<Color>_<yyyyMMdd>_<HHmmss>.jpg
-  <Variant>/exterior/<checkpoint>_<Variant>/...
+  <Variant>/<Color>/interior/<checkpoint>_<Variant>/<Variant>_<checkpoint>_<Color>_<yyyyMMdd>_<HHmmss>.jpg
+  <Variant>/<Color>/exterior/<checkpoint>_<Variant>/...
   config.json        ← checkpoints and colors per variant (also editable in the app)
   capture_log.csv    ← time, variant, vehicle, section, checkpoint, file, saved/retaken/deleted
   vehicles.csv       ← color chosen for each vehicle
   photo_index.json   ← which vehicle each photo belongs to (also in capture_log.csv)
 ```
-To zip: home screen → **Zip photos…**, pick the date and time range. Zips go to `Download/PunchCapture_Zips/`.
+To zip: home screen → **Zip photos…**, pick the date and time range. Zips go to `Download/PunchCapture_Zips/`; **Send via Bluetooth** opens the Bluetooth sender directly (slow for big zips — USB or Quick Share is faster).
 
 To copy: plug the Zebra into the laptop with USB, choose **File transfer**, and copy the `PunchCapture` folder.
 

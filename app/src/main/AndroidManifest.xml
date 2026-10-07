@@ -12,7 +12,8 @@
 
     <queries>
         <intent>
-            <action android:name="android.media.action.IMAGE_CAPTURE" />
+            <action android:name="android.intent.action.SEND" />
+            <data android:mimeType="application/zip" />
         </intent>
     </queries>
 
