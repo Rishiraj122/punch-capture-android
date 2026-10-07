@@ -19,14 +19,7 @@
   --r:16px;
   color-scheme:light;
 }
-@media (prefers-color-scheme:dark){:root{
-  --bg:#0c1220; --card:#151d2c; --card-2:#1b2536; --fg:#e8eef6; --muted:#97a3b4; --line:#253145;
-  --primary:#3d8bff; --primary-ink:#04101f; --primary-soft:#14284a;
-  --ok:#38c172; --ok-soft:#12291d; --warn:#f5a524; --bad:#ef5b52; --bad-soft:#2e1513;
-  --tile:#e9eef5; --hero-a:#dce8fb; --hero-b:#eef3fb;
-  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767; --sx:#6b6a66;
-  --shadow:0 1px 2px rgba(0,0,0,.35);
-  color-scheme:dark}}
+/* light theme only, as in the approved design */
 *{box-sizing:border-box}
 html,body{margin:0}
 body{background:var(--bg);color:var(--fg);font:16px/1.4 var(--f-ui);-webkit-tap-highlight-color:transparent}
@@ -688,6 +681,12 @@ function sendButtons(path){
       <button class="btn ghost" data-act="shareZip" data-bt="0" data-path="${esc(path)}">${ic("share","sm")}Other apps</button>
     </div>`;
 }
+function folderButtons(){
+  return `<div class="row-btns">
+      <button class="btn soft" data-act="openFolder" data-which="zips">${ic("folder","sm")}Zip files</button>
+      <button class="btn soft" data-act="openFolder" data-which="photos">${ic("folder","sm")}Photo folders</button>
+    </div>`;
+}
 function renderZip(){
   const z=S.zip;
   $app.innerHTML = `
@@ -713,6 +712,7 @@ function renderZip(){
           <div style="min-width:0"><b>Zip ready</b><div class="mono" style="color:var(--fg)">${esc(z.result.name||z.result.path.split("/").pop())}</div>
           <div class="meta">${mb(z.result.bytes)} · ${z.result.count} photos</div></div></div>
         ${sendButtons(z.result.path)}
+        ${folderButtons()}
         <div class="meta">Bluetooth: ${btEstimate(z.result.bytes)} for this zip (pair first; the other device must accept). USB from Download/PunchCapture_Zips or Quick Share under Other apps is faster.</div>
       </div>` : ""}
     ${z.list && z.list.length ? `<p class="label">Recent zips</p>
@@ -722,7 +722,9 @@ function renderZip(){
             <div><div class="mono" style="color:var(--fg)">${esc(f.name)}</div><div class="meta">${mb(f.bytes)} · ${fmtLong(f.time)}</div></div>
             ${ic("dots")}</button>
           ${z.open===f.path ? `<div style="margin-top:10px">${sendButtons(f.path)}</div>` : ""}</li>`).join("")}</ul>` : ""}
-    <p class="meta" style="margin-top:12px">The zip keeps Variant / Color / interior-exterior / checkpoint folders, plus capture_log.csv, vehicles.csv and config.json. Photos are matched by the time they were taken.</p>`;
+    <p class="label">Folders on this Zebra</p>
+    ${folderButtons()}
+    <p class="meta" style="margin-top:12px">Zip files are in Download/PunchCapture_Zips; photos are in PunchCapture, sorted by variant. The zip keeps Variant / Color / interior-exterior / checkpoint folders, plus capture_log.csv, vehicles.csv and config.json. Photos are matched by the time they were taken.</p>`;
 }
 window.onZipProgress = function(done,total){ if(S.zip){ S.zip.busy=`Zipping ${done} of ${total}…`; if(S.screen==="zip") render(); } };
 window.onZip = function(raw){
@@ -1053,6 +1055,13 @@ $app.addEventListener("click", e => {
     }
     else if(a==="makeZip"){ const r=zipRange(); S.zip.busy="Zipping…"; S.zip.result=null; render(); Native.makeZip(r.from, r.to, r.label); }
     else if(a==="zipOpen"){ S.zip.open = S.zip.open===b.dataset.path ? null : b.dataset.path; render(); }
+    else if(a==="openFolder"){
+      const w=b.dataset.which, r=nat("openFolder", w);
+      if(!r.ok){
+        if(w==="photos"){ toast("No Files app found, showing folders here"); S.viewer=null; loadBrowse(""); S.screen="browse"; render(); window.scrollTo(0,0); }
+        else { toast("No Files app found. Recent zips are listed below."); document.querySelector(".zips")?.scrollIntoView({behavior:"smooth"}); }
+      }
+    }
     else if(a==="shareZip"){ nat("shareZip", b.dataset.path, b.dataset.bt==="1"); }
   }catch(err){
     S.busy=null;

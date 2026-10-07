@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MobileVision.Ai — Download</title>
+<style>
+  :root{--bg:#f2f5fa;--card:#fff;--fg:#0f1b2d;--muted:#667385;--line:#e2e8f0;--primary:#1769e8;--ok:#1f9d55;color-scheme:light}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  main{max-width:520px;margin:0 auto;padding:36px 16px 48px}
+  h1{font-size:2rem;margin:0;letter-spacing:-.02em;font-weight:800}
+  h1 em{font-style:normal;color:var(--primary)}
+  .sub{color:var(--muted);margin:4px 0 24px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:0 4px 14px rgba(15,27,45,.05)}
+  .ver{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+  .ver b{font-size:1.15rem}
+  .ver span{color:var(--muted);font-size:.9rem}
+  a.dl{display:flex;align-items:center;justify-content:center;gap:10px;background:var(--primary);color:#fff;text-decoration:none;
+    font-weight:700;font-size:1.1rem;border-radius:14px;min-height:60px}
+  a.dl:focus-visible{outline:3px solid var(--fg);outline-offset:2px}
+  ol{margin:20px 0 0;padding-left:22px;display:flex;flex-direction:column;gap:8px}
+  .note{color:var(--muted);font-size:.88rem;margin-top:18px}
+  svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+</style>
+</head>
+<body>
+<main>
+  <h1>MobileVision<em>.Ai</em></h1>
+  <p class="sub">Vision data collection for Tata Motors vehicles · Punch Capture</p>
+  <div class="card">
+    <div class="ver"><b>Version __VERSION__</b><span>Android · __SIZE__ · built __DATE__</span></div>
+    <a class="dl" href="MobileVision.apk" download="MobileVision-__VERSION__.apk">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Download APK</a>
+    <ol>
+      <li>Tap <b>Download APK</b>, then open the downloaded file.</li>
+      <li>If asked, allow <b>Install unknown apps</b> for your browser.</li>
+      <li>Tap <b>Install</b> (or <b>Update</b>). Photos and settings are kept.</li>
+    </ol>
+  </div>
+  <p class="note">Photos stay on the device in the PunchCapture folder. Zips are saved in Download/PunchCapture_Zips.</p>
+</main>
+</body>
+</html>

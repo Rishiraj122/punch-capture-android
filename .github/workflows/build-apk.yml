@@ -7,10 +7,18 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: build-apk
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      VERSION: 1.0.${{ github.run_number }}
     steps:
       - uses: actions/checkout@v4
 
@@ -27,13 +35,57 @@ jobs:
         run: gradle --no-daemon :app:assembleRelease
 
       - name: Name the APK
-        run: cp app/build/outputs/apk/release/app-release.apk MobileVision-v1.0.${{ github.run_number }}.apk
+        run: cp app/build/outputs/apk/release/app-release.apk MobileVision-v$VERSION.apk
 
       - name: Publish to Releases
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
-          name: MobileVision.Ai v1.0.${{ github.run_number }}
+          name: MobileVision.Ai v${{ env.VERSION }}
           body: Download the .apk below on the Zebra and open it to install or update.
-          files: MobileVision-v1.0.${{ github.run_number }}.apk
+          files: MobileVision-v${{ env.VERSION }}.apk
           make_latest: true
+
+      - name: Build download page
+        run: |
+          mkdir -p public
+          cp MobileVision-v$VERSION.apk public/MobileVision.apk
+          SIZE=$(du -m public/MobileVision.apk | cut -f1)
+          sed -e "s/__VERSION__/$VERSION/g" -e "s/__SIZE__/${SIZE} MB/g" -e "s/__DATE__/$(date -u +'%d %b %Y')/g" site/index.html > public/index.html
+          printf '/MobileVision.apk\n  Content-Type: application/vnd.android.package-archive\n' > public/_headers
+
+      # Netlify: runs when the NETLIFY_AUTH_TOKEN secret exists. Site: https://mobilevision-ai-r122.netlify.app
+      - name: Deploy to Netlify
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          SITE_NAME: mobilevision-ai-r122
+        if: env.NETLIFY_AUTH_TOKEN != ''
+        run: |
+          set -e
+          API=https://api.netlify.com/api/v1
+          AUTH="Authorization: Bearer $NETLIFY_AUTH_TOKEN"
+          SITE_ID=$(curl -fsS -H "$AUTH" "$API/sites/$SITE_NAME.netlify.app" | jq -r .id || true)
+          if [ -z "$SITE_ID" ] || [ "$SITE_ID" = "null" ]; then
+            SITE_ID=$(curl -fsS -H "$AUTH" -H "Content-Type: application/json" -d "{\"name\":\"$SITE_NAME\"}" "$API/sites" | jq -r .id)
+          fi
+          (cd public && zip -qr ../site.zip .)
+          curl -fsS -H "$AUTH" -H "Content-Type: application/zip" --data-binary @site.zip "$API/sites/$SITE_ID/deploys" | jq -r '.state, .ssl_url'
+          echo "Netlify: https://$SITE_NAME.netlify.app"
+
+      - name: Upload page for GitHub Pages
+        id: pages_artifact
+        continue-on-error: true
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+  pages:
+    needs: build
+    runs-on: ubuntu-latest
+    continue-on-error: true   # stays green until Pages is turned on in repo Settings → Pages → Source: GitHub Actions
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

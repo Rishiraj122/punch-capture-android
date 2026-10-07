@@ -778,6 +778,25 @@ public class MainActivity extends Activity {
         startActivity(Intent.createChooser(i, "Send zip"));
     }
 
+    /** Opens a folder under shared storage in the device's Files app. Returns false if no app could show it. */
+    private boolean openInFiles(String relToStorage) {
+        String docId = "primary:" + relToStorage;
+        Uri uri = android.provider.DocumentsContract.buildDocumentUri("com.android.externalstorage.documents", docId);
+        String[][] tries = {
+                {"vnd.android.document/directory", "com.google.android.documentsui"},
+                {"vnd.android.document/directory", "com.android.documentsui"},
+                {"vnd.android.document/directory", null},
+                {"resource/folder", null}};
+        for (String[] t : tries) {
+            Intent i = new Intent(Intent.ACTION_VIEW);
+            i.setDataAndType(uri, t[0]);
+            i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+            if (t[1] != null) i.setPackage(t[1]);
+            try { startActivity(i); return true; } catch (Exception ignored) { }
+        }
+        return false;
+    }
+
     // ---------- browsing & stats ----------
     private static boolean isPhoto(File f) {
         String n = f.getName().toLowerCase(Locale.US);
@@ -874,6 +893,19 @@ public class MainActivity extends Activity {
         public void makeZip(double from, double to, String label) {
             String l = label.replaceAll("[^A-Za-z0-9_-]", "");
             new Thread(() -> MainActivity.this.makeZip((long) from, (long) to, l.isEmpty() ? "export" : l)).start();
+        }
+
+        /** which = "zips" (Download/PunchCapture_Zips) or "photos" (PunchCapture root). */
+        @JavascriptInterface
+        public String openFolder(String which) {
+            return safe(() -> {
+                String rel = "zips".equals(which) ? Environment.DIRECTORY_DOWNLOADS + "/PunchCapture_Zips" : "PunchCapture";
+                final boolean[] ok = {false};
+                final Object done = new Object();
+                runOnUiThread(() -> { ok[0] = openInFiles(rel); synchronized (done) { done.notifyAll(); } });
+                synchronized (done) { done.wait(3000); }
+                return new JSONObject().put("ok", ok[0]);
+            });
         }
 
         @JavascriptInterface
