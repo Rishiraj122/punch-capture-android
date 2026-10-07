@@ -225,7 +225,7 @@ public class MainActivity extends Activity {
     /** Small cached copy for the screen, rotated upright. The original photo is never changed. */
     private File preview(File src, int maxSide) {
         String rel = src.getAbsolutePath().substring(root().getAbsolutePath().length());
-        File out = new File(getCacheDir(), "preview" + maxSide + rel);
+        File out = new File(getCacheDir(), "preview" + maxSide + rel + "." + src.lastModified() + ".jpg");
         if (out.exists() && out.lastModified() >= src.lastModified()) return out;
         try {
             BitmapFactory.Options b = new BitmapFactory.Options();
@@ -296,10 +296,14 @@ public class MainActivity extends Activity {
         return new File(dir, "shot.jpg");
     }
 
-    private void launchCamera(String vid, String section, String cid, int vehicle) {
+    private void launchCamera(String vid, String section, String cid, int vehicle, String replacePath) {
         File tmp = camTemp();
         if (tmp.exists()) tmp.delete();
-        prefs.edit().putString("pending", vid + "|" + section + "|" + cid + "|" + vehicle).apply();
+        try {
+            JSONObject p = new JSONObject().put("variant", vid).put("section", section)
+                    .put("checkpoint", cid).put("vehicle", vehicle).put("replace", replacePath == null ? "" : replacePath);
+            prefs.edit().putString("pending", p.toString()).apply();
+        } catch (JSONException ignored) { }
         Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".files", tmp);
         Intent i = new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE);
         i.putExtra(android.provider.MediaStore.EXTRA_OUTPUT, uri);
@@ -321,46 +325,62 @@ public class MainActivity extends Activity {
         prefs.edit().remove("pending").apply();
         File tmp = camTemp();
         if (pending == null) return;
-        String[] p = pending.split("\\|");
+        final JSONObject p;
+        try { p = new JSONObject(pending); } catch (JSONException e) { return; }
         if (resultCode != RESULT_OK || !tmp.exists() || tmp.length() == 0) {
-            JSONObject o = new JSONObject();
-            try {
-                o.put("cancelled", true);
-                o.put("variant", p[0]); o.put("section", p[1]); o.put("checkpoint", p[2]);
-                o.put("vehicle", Integer.parseInt(p[3]));
-            } catch (JSONException ignored) { }
-            deliver(o.toString());
+            try { p.put("cancelled", true); } catch (JSONException ignored) { }
+            deliver(p.toString());
             return;
         }
-        new Thread(() -> deliver(storePhoto(p[0], p[1], p[2], Integer.parseInt(p[3]), tmp))).start();
+        new Thread(() -> deliver(storePhoto(p.optString("variant"), p.optString("section"),
+                p.optString("checkpoint"), p.optInt("vehicle"), p.optString("replace"), tmp))).start();
     }
 
-    private String storePhoto(String vid, String section, String cid, int vehicle, File tmp) {
+    /** Saves the new shot. With replacePath set, the new shot takes that photo's place (same file name). */
+    private String storePhoto(String vid, String section, String cid, int vehicle, String replacePath, File tmp) {
         try {
             File folder = new File(root(), vid + "/" + section + "/" + cid);
-            File target;
+            File target = null;
+            boolean replaced = false;
             synchronized (lock) {
                 folder.mkdirs();
-                int shot = photosFor(vid, section, cid, vehicle).size() + 1;
-                while (true) {
-                    target = new File(folder, String.format(Locale.US, "%s_%s_V%03d_%02d.jpg", vid, cid, vehicle, shot));
-                    if (!target.exists()) break;
-                    shot++;
+                if (replacePath != null && !replacePath.isEmpty()) {
+                    File old = new File(replacePath);
+                    if (old.getCanonicalFile().getParentFile().equals(folder.getCanonicalFile())) {
+                        target = old;
+                        replaced = true;
+                    }
                 }
-                try (InputStream in = new FileInputStream(tmp); OutputStream out = new FileOutputStream(target)) {
+                if (target == null) {
+                    int shot = photosFor(vid, section, cid, vehicle).size() + 1;
+                    while (true) {
+                        target = new File(folder, String.format(Locale.US, "%s_%s_V%03d_%02d.jpg", vid, cid, vehicle, shot));
+                        if (!target.exists()) break;
+                        shot++;
+                    }
+                }
+                File part = new File(folder, target.getName() + ".part");
+                try (InputStream in = new FileInputStream(tmp); OutputStream out = new FileOutputStream(part)) {
                     copy(in, out);
                 }
+                if (target.exists() && !target.delete()) {
+                    part.delete();
+                    throw new UserError("Could not replace the old photo.");
+                }
+                if (!part.renameTo(target)) throw new IOException("could not finish writing the file");
                 tmp.delete();
                 Integer r = reserved.get(vid);
                 reserved.put(vid, Math.max(r == null ? 0 : r, vehicle));
             }
             scan(target);
             String rel = target.getAbsolutePath().substring(root().getAbsolutePath().length() + 1);
-            appendLog(now(), vid, String.format(Locale.US, "V%03d", vehicle), section, cid, rel, "saved");
+            appendLog(now(), vid, String.format(Locale.US, "V%03d", vehicle), section, cid, rel, replaced ? "retaken" : "saved");
             JSONObject o = photoJson(target);
-            o.put("ok", true);
+            o.put("ok", true).put("replaced", replaced);
             o.put("variant", vid); o.put("section", section); o.put("checkpoint", cid); o.put("vehicle", vehicle);
             return o.toString();
+        } catch (UserError e) {
+            return err(e.getMessage());
         } catch (Exception e) {
             return err("Photo not saved: " + e.getMessage());
         }
@@ -477,36 +497,55 @@ public class MainActivity extends Activity {
             });
         }
 
+        /** allVariants=true adds it to every variant that doesn't have it yet. */
         @JavascriptInterface
-        public String addCheckpoint(String vid, String section, String name) {
+        public String addCheckpoint(String vid, String section, String name, boolean allVariants) {
             return safe(() -> {
                 synchronized (lock) {
                     checkSection(section);
                     JSONObject cfg = loadConfig();
-                    JSONObject v = findVariant(cfg, vid);
+                    findVariant(cfg, vid);
                     String cid = slug(name).toLowerCase(Locale.US);
-                    JSONArray arr = v.getJSONArray(section);
-                    for (int i = 0; i < arr.length(); i++)
-                        if (arr.getJSONObject(i).getString("id").equals(cid))
-                            throw new UserError("'" + name.trim() + "' is already in " + section + ".");
-                    arr.put(new JSONObject().put("id", cid).put("name", name.trim()));
+                    JSONArray vars = cfg.getJSONArray("variants");
+                    int added = 0;
+                    for (int i = 0; i < vars.length(); i++) {
+                        JSONObject v = vars.getJSONObject(i);
+                        if (!allVariants && !v.getString("id").equals(vid)) continue;
+                        JSONArray arr = v.getJSONArray(section);
+                        boolean has = false;
+                        for (int j = 0; j < arr.length(); j++)
+                            if (arr.getJSONObject(j).getString("id").equals(cid)) has = true;
+                        if (!has) {
+                            arr.put(new JSONObject().put("id", cid).put("name", name.trim()));
+                            added++;
+                        }
+                    }
+                    if (added == 0)
+                        throw new UserError("'" + name.trim() + "' is already in " + section
+                                + (allVariants ? " for every variant." : "."));
                     saveConfig(cfg);
                     return cfg;
                 }
             });
         }
 
+        /** allVariants=true removes it from every variant. Photos already taken stay on disk. */
         @JavascriptInterface
-        public String removeCheckpoint(String vid, String section, String cid) {
+        public String removeCheckpoint(String vid, String section, String cid, boolean allVariants) {
             return safe(() -> {
                 synchronized (lock) {
+                    checkSection(section);
                     JSONObject cfg = loadConfig();
-                    JSONObject v = findVariant(cfg, vid);
-                    findCheckpoint(v, section, cid);
-                    JSONArray arr = v.getJSONArray(section), keep = new JSONArray();
-                    for (int i = 0; i < arr.length(); i++)
-                        if (!arr.getJSONObject(i).getString("id").equals(cid)) keep.put(arr.getJSONObject(i));
-                    v.put(section, keep);
+                    findCheckpoint(findVariant(cfg, vid), section, cid);
+                    JSONArray vars = cfg.getJSONArray("variants");
+                    for (int i = 0; i < vars.length(); i++) {
+                        JSONObject v = vars.getJSONObject(i);
+                        if (!allVariants && !v.getString("id").equals(vid)) continue;
+                        JSONArray arr = v.getJSONArray(section), keep = new JSONArray();
+                        for (int j = 0; j < arr.length(); j++)
+                            if (!arr.getJSONObject(j).getString("id").equals(cid)) keep.put(arr.getJSONObject(j));
+                        v.put(section, keep);
+                    }
                     saveConfig(cfg);
                     return cfg;
                 }
@@ -584,15 +623,16 @@ public class MainActivity extends Activity {
             });
         }
 
+        /** replacePath empty = new shot; otherwise retake that photo. */
         @JavascriptInterface
-        public void takePhoto(String vid, String section, String cid, int vehicle) {
+        public void takePhoto(String vid, String section, String cid, int vehicle, String replacePath) {
             String check = safe(() -> {
                 if (!hasStorage()) throw new UserError("Storage access is off. Allow it to save photos.");
                 findCheckpoint(findVariant(loadConfig(), vid), section, cid);
                 return null;
             });
             if (check.contains("\"error\"")) { deliver(check); return; }
-            runOnUiThread(() -> launchCamera(vid, section, cid, vehicle));
+            runOnUiThread(() -> launchCamera(vid, section, cid, vehicle, replacePath));
         }
     }
 }

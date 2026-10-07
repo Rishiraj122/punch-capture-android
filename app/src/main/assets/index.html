@@ -93,7 +93,7 @@ input[type=text],select{width:100%;font:inherit;padding:12px;border-radius:10px;
 
 <script>
 const S = { cfg:null, screen:"home", variant:null, vehicle:null, section:"interior", progress:null,
-            busy:null, viewer:null, confirm:null, lastOnDisk:{}, storage:null };
+            busy:null, viewer:null, confirm:null, lastOnDisk:{}, storage:null, scopeAll:true };
 const $app = document.getElementById("app");
 
 const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -168,8 +168,8 @@ function renderHome(){
     <div class="card">
       <input type="text" id="newVarName" placeholder="Variant name, e.g. Punch Creative" autocomplete="off">
       <select id="newVarCopy">
+        ${S.cfg.variants.map((v,i)=>`<option value="${v.id}" ${i===0?"selected":""}>Copy checkpoints from ${esc(v.name)}</option>`).join("")}
         <option value="">Start with an empty checklist</option>
-        ${S.cfg.variants.map(v=>`<option value="${v.id}">Copy checkpoints from ${esc(v.name)}</option>`).join("")}
       </select>
       <button class="btn primary" data-act="addVariant">Add variant</button>
       <div class="err" id="varErr"></div>
@@ -189,8 +189,8 @@ function renderVehicle(){
     const busy = S.busy && S.busy.section===S.section && S.busy.cp===c.id;
     return `<li class="cp ${shots.length?"done":""} ${isNext?"next":""}" id="cp-${c.id}">
       <div><div class="cp-name">${esc(c.name)}</div>
-        <div class="cp-file">${S.section}/${c.id}/ · ${shots.length} photo${shots.length===1?"":"s"}</div></div>
-      <button class="shoot" data-act="shoot" data-s="${S.section}" data-c="${c.id}">${shots.length?"Add":"Shoot"}</button>
+        <div class="cp-file">${S.section}/${c.id}/ · ${shots.length} shot${shots.length===1?"":"s"}</div></div>
+      <button class="shoot" data-act="shoot" data-s="${S.section}" data-c="${c.id}">${shots.length?"+ Angle":"Shoot"}</button>
       ${busy?`<div class="busy">Saving photo…</div>`:""}
       <div class="thumbs">${shots.map((ph,i)=>`<button data-act="view" data-s="${S.section}" data-c="${c.id}" data-i="${i}" aria-label="View photo"><img src="${esc(ph.thumb)}" alt=""></button>`).join("")}</div>
     </li>`;
@@ -219,12 +219,14 @@ function viewerHTML(){
   const ph=S.viewer;
   return `<div class="viewer" role="dialog" aria-label="Photo">
     <img src="${esc(ph.url)}" alt="">
-    <div class="name">${esc(ph.name)}</div>
+    <div class="name">Shot ${ph.index+1} of ${ph.total} · ${esc(ph.name)}</div>
     ${S.confirm==="photo" ? `<div class="confirm"><p>Delete this photo from the device?</p>
         <div class="row-btns"><button class="btn danger" data-act="delPhoto">Delete photo</button>
         <button class="btn ghost" data-act="cancelConfirm">Keep</button></div></div>`
       : `<div class="row-btns"><button class="btn ghost" data-act="closeViewer">Close</button>
-        <button class="btn danger" data-act="askDelPhoto">Delete</button></div>`}
+        <button class="btn primary" data-act="retake">Retake</button>
+        <button class="btn danger" data-act="askDelPhoto">Delete</button></div>
+        <div class="name" style="opacity:.75">Retake replaces this shot with a new photo under the same name.</div>`}
   </div>`;
 }
 
@@ -234,21 +236,26 @@ function renderSetup(){
     <p class="label">${s} · ${v[s].length}</p>
     <ul class="edit-list">${v[s].map(c=>`<li><span>${esc(c.name)}<div class="cp-file">${c.id}</div></span>
       ${S.confirm===s+"/"+c.id
-        ? `<button class="x" data-act="delCp" data-s="${s}" data-c="${c.id}">Remove</button><button class="x" style="color:var(--muted)" data-act="cancelConfirm">Keep</button>`
+        ? `<button class="x" data-act="delCp" data-s="${s}" data-c="${c.id}">${S.scopeAll?"Remove from all":"Remove"}</button><button class="x" style="color:var(--muted)" data-act="cancelConfirm">Keep</button>`
         : `<button class="x" data-act="askDelCp" data-s="${s}" data-c="${c.id}" aria-label="Remove ${esc(c.name)}">✕</button>`}
       </li>`).join("") || `<li class="empty">None yet.</li>`}</ul>
     <div class="add" style="margin-top:8px"><input type="text" id="add-${s}" placeholder="Add ${s} checkpoint" autocomplete="off">
       <button class="btn ghost" data-act="addCp" data-s="${s}" style="padding:10px 14px">Add</button></div>`;
   $app.innerHTML = `
-    <header class="top"><button class="icon-btn" data-act="home">‹ Back</button><h1>${esc(v.name)} checkpoints</h1></header>
-    <div class="meta">Changes apply to this variant only. Removing a checkpoint hides it from the list; photos already taken stay in their folder.</div>
+    <header class="top"><button class="icon-btn" data-act="home">‹ Back</button><h1>Checkpoints</h1></header>
+    <p class="label" style="margin-top:4px">Apply changes to</p>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" aria-selected="${S.scopeAll}" data-act="scope" data-all="1">All variants</button>
+      <button class="tab" role="tab" aria-selected="${!S.scopeAll}" data-act="scope" data-all="0">Only ${esc(v.name)}</button>
+    </div>
+    <div class="meta" style="margin-top:8px">Showing ${esc(v.name)}'s list. ${S.scopeAll ? "Adding or removing here changes every variant." : "Adding or removing here changes this variant only."} Removing a checkpoint hides it from the list; photos already taken stay in their folder.</div>
     ${sec("interior")}${sec("exterior")}
     <div class="err" id="cpErr" style="margin-top:8px"></div>
     <p class="label">Variant</p>
     ${S.confirm==="variant"
-      ? `<div class="confirm"><p>Remove ${esc(v.name)} from the list? Its photo folders stay on the device.</p>
+      ? `<div class="confirm"><p>Remove the variant ${esc(v.name)}? Its photo folders stay on the device.</p>
           <div class="row-btns"><button class="btn danger" data-act="delVariant">Remove variant</button><button class="btn ghost" data-act="cancelConfirm">Keep</button></div></div>`
-      : `<button class="btn danger" data-act="askDelVariant" style="width:100%">Remove variant</button>`}`;
+      : `<button class="btn danger" data-act="askDelVariant" style="width:100%">Remove ${esc(v.name)}</button>`}`;
 }
 
 // ---------- actions ----------
@@ -285,7 +292,7 @@ window.onPhoto = function(raw){
     loadConfig(); openVehicle(r.variant, r.vehicle);   // app was restarted while the camera was open
   }
   if(r.cancelled){ render(); return; }
-  buzz(40); toast("Saved " + r.name);
+  buzz(40); toast((r.replaced ? "Retaken " : "Saved ") + r.name);
   S.lastOnDisk[r.variant] = Math.max(S.lastOnDisk[r.variant]||0, r.vehicle);
   loadProgress();
   const nxt=nextPending();
@@ -304,17 +311,24 @@ $app.addEventListener("click", e => {
     else if(a==="home"){ goHome(); }
     else if(a==="new"){ const r=nat("newVehicle", b.dataset.v); openVehicle(b.dataset.v, r.vehicle); toast(`Started V${pad3(r.vehicle)}`); }
     else if(a==="resume"){ openVehicle(b.dataset.v, +b.dataset.n); }
-    else if(a==="setup"){ S.variant=b.dataset.v; S.screen="setup"; S.confirm=null; render(); window.scrollTo(0,0); }
+    else if(a==="setup"){ S.variant=b.dataset.v; S.screen="setup"; S.confirm=null; S.scopeAll=true; render(); window.scrollTo(0,0); }
     else if(a==="tab"){ S.section=b.dataset.s; render(); }
     else if(a==="shoot"){
       S.busy={section:b.dataset.s, cp:b.dataset.c}; S.section=b.dataset.s; render();
-      Native.takePhoto(S.variant, b.dataset.s, b.dataset.c, S.vehicle);
+      Native.takePhoto(S.variant, b.dataset.s, b.dataset.c, S.vehicle, "");
     }
     else if(a==="view"){
-      const ph = S.progress[b.dataset.s][b.dataset.c][+b.dataset.i];
-      S.viewer = {path:ph.path, name:ph.name, url:nat("bigPreview", ph.path).url}; S.confirm=null; render();
+      const list = S.progress[b.dataset.s][b.dataset.c], i = +b.dataset.i, ph = list[i];
+      S.viewer = {path:ph.path, name:ph.name, url:nat("bigPreview", ph.path).url, section:b.dataset.s, cp:b.dataset.c, index:i, total:list.length};
+      S.confirm=null; render();
     }
     else if(a==="closeViewer"){ S.viewer=null; render(); }
+    else if(a==="retake"){
+      const ph=S.viewer; S.viewer=null; S.confirm=null;
+      S.busy={section:ph.section, cp:ph.cp}; S.section=ph.section; render();
+      Native.takePhoto(S.variant, ph.section, ph.cp, S.vehicle, ph.path);
+    }
+    else if(a==="scope"){ S.scopeAll = b.dataset.all==="1"; S.confirm=null; render(); }
     else if(a==="askDelPhoto"){ S.confirm="photo"; render(); }
     else if(a==="delPhoto"){ nat("deletePhoto", S.viewer.path); S.viewer=null; S.confirm=null; loadProgress(); render(); toast("Photo deleted"); }
     else if(a==="cancelConfirm"){ S.confirm=null; render(); }
@@ -327,11 +341,12 @@ $app.addEventListener("click", e => {
     else if(a==="addCp"){
       const inp=document.getElementById("add-"+b.dataset.s), name=inp.value.trim();
       if(!name){ document.getElementById("cpErr").textContent="Type a checkpoint name first."; return; }
-      S.cfg = nat("addCheckpoint", S.variant, b.dataset.s, name);
+      S.cfg = nat("addCheckpoint", S.variant, b.dataset.s, name, S.scopeAll);
+      toast(S.scopeAll ? `Added "${name}" to all variants` : `Added "${name}" to ${V().name}`);
       render(); document.getElementById("add-"+b.dataset.s)?.focus();
     }
     else if(a==="askDelCp"){ S.confirm=b.dataset.s+"/"+b.dataset.c; render(); }
-    else if(a==="delCp"){ S.cfg = nat("removeCheckpoint", S.variant, b.dataset.s, b.dataset.c); S.confirm=null; render(); }
+    else if(a==="delCp"){ S.cfg = nat("removeCheckpoint", S.variant, b.dataset.s, b.dataset.c, S.scopeAll); S.confirm=null; render(); toast(S.scopeAll ? "Removed from all variants" : "Removed from " + V().name); }
     else if(a==="askDelVariant"){ S.confirm="variant"; render(); }
     else if(a==="delVariant"){ S.cfg = nat("removeVariant", S.variant); S.confirm=null; goHome(); }
   }catch(err){
