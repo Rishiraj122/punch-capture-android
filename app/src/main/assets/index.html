@@ -319,7 +319,7 @@ function viewerHTML(){
       : `<div class="row-btns"><button class="btn ghost" data-act="closeViewer">Close</button>
         <button class="btn primary" data-act="retake">Retake</button>
         <button class="btn danger" data-act="askDelPhoto">Delete</button></div>
-        <div class="name" style="opacity:.75">Retake replaces this shot with a new photo under the same name.</div>`}
+        <div class="name" style="opacity:.75">Retake takes a new photo and deletes this one.</div>`}
   </div>`;
 }
 
@@ -555,7 +555,8 @@ $app.addEventListener("click", e => {
     else if(a==="sheetCancel"){ S.sheet=null; render(); }
     else if(a==="sheetOk"){
       const sh=S.sheet; if(!sh.color) return;
-      if(sh.change){ nat("setVehicleColor", sh.vid, sh.vehicle, sh.color); S.sheet=null; loadProgress(); render(); toast(`V${pad3(sh.vehicle)} · ${sh.color}`); }
+      if(sh.change){ const r=nat("setVehicleColor", sh.vid, sh.vehicle, sh.color); S.sheet=null; loadProgress(); render();
+        toast(`V${pad3(sh.vehicle)} · ${sh.color}${r.renamed ? ` · ${r.renamed} photo${r.renamed===1?"":"s"} renamed` : ""}`); }
       else startVehicle(sh.vid, sh.color);
     }
     else if(a==="resume"){ openVehicle(b.dataset.v, +b.dataset.n); }

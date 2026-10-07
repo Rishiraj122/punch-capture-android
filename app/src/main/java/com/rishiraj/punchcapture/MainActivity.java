@@ -189,6 +189,62 @@ public class MainActivity extends Activity {
     }
 
     // ---------- photos ----------
+    // ---------- photo index ----------
+    // File names no longer carry the vehicle number, so photo_index.json maps each photo
+    // (path relative to PunchCapture/) to its vehicle. Older names with _V001_ still work.
+    private JSONObject photoIndex;
+    private static final Pattern STAMP_RE = Pattern.compile("^(.+)_(\\d{8}_\\d{6}(?:_\\d+)?)\\.jpg$");
+
+    private File indexFile() { return new File(root(), "photo_index.json"); }
+
+    private JSONObject index() {
+        synchronized (lock) {
+            if (photoIndex == null) {
+                try {
+                    File f = indexFile();
+                    photoIndex = f.exists() ? new JSONObject(readText(f)) : new JSONObject();
+                } catch (Exception e) {
+                    photoIndex = new JSONObject();
+                }
+            }
+            return photoIndex;
+        }
+    }
+
+    private void saveIndex() {
+        synchronized (lock) {
+            try { writeText(indexFile(), index().toString(1)); } catch (Exception ignored) { }
+        }
+        scan(indexFile());
+    }
+
+    private String relOf(File f) {
+        return f.getAbsolutePath().substring(root().getAbsolutePath().length() + 1);
+    }
+
+    private int vehicleOf(File f) {
+        int v;
+        synchronized (lock) { v = index().optInt(relOf(f), 0); }
+        if (v > 0) return v;
+        Matcher m = VEH_RE.matcher(f.getName());
+        return m.find() ? Integer.parseInt(m.group(1)) : 0;
+    }
+
+    private static String colorPart(String color) {
+        String c = color == null ? "" : color.trim().replaceAll("[^A-Za-z0-9]+", "_").replaceAll("^_+|_+$", "");
+        return c.isEmpty() ? "NoColor" : c;
+    }
+
+    /** <Variant>_<checkpoint>_<Color>_<yyyyMMdd>_<HHmmss>.jpg, with _2, _3… if two shots land in the same second. */
+    private File newPhotoFile(File folder, String vid, String cid, String color) {
+        String stamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
+        String base = vid + "_" + cid + "_" + colorPart(color) + "_" + stamp;
+        File f = new File(folder, base + ".jpg");
+        int k = 2;
+        while (f.exists()) f = new File(folder, base + "_" + (k++) + ".jpg");
+        return f;
+    }
+
     private int maxVehicleOnDisk(String vid) {
         File base = new File(root(), vid);
         int[] best = {0};
@@ -196,7 +252,46 @@ public class MainActivity extends Activity {
             Matcher m = VEH_RE.matcher(f.getName());
             if (m.find()) best[0] = Math.max(best[0], Integer.parseInt(m.group(1)));
         });
+        synchronized (lock) {
+            JSONObject idx = index();
+            for (java.util.Iterator<String> it = idx.keys(); it.hasNext(); ) {
+                String k = it.next();
+                if (k.startsWith(vid + "/")) best[0] = Math.max(best[0], idx.optInt(k, 0));
+            }
+        }
         return best[0];
+    }
+
+    /** After a vehicle's color changes, rename its photos so the color in the name stays right. */
+    private int renameForColor(String vid, int vehicle, String color) {
+        List<File> mine = new ArrayList<>();
+        walk(new File(root(), vid), f -> {
+            if (f.getName().toLowerCase(Locale.US).endsWith(".jpg") && vehicleOf(f) == vehicle) mine.add(f);
+        });
+        int n = 0;
+        synchronized (lock) {
+            for (File f : mine) {
+                File folder = f.getParentFile();
+                String fn = folder.getName(), suffix = "_" + vid;
+                if (!fn.endsWith(suffix)) continue;
+                String cid = fn.substring(0, fn.length() - suffix.length());
+                Matcher m = STAMP_RE.matcher(f.getName());
+                if (!m.matches() || !f.getName().startsWith(vid + "_" + cid + "_")) continue;
+                File to = new File(folder, vid + "_" + cid + "_" + colorPart(color) + "_" + m.group(2) + ".jpg");
+                if (to.equals(f) || to.exists()) continue;
+                String oldRel = relOf(f);
+                if (f.renameTo(to)) {
+                    try {
+                        index().remove(oldRel);
+                        index().put(relOf(to), vehicle);
+                    } catch (JSONException ignored) { }
+                    scan(f, to);
+                    n++;
+                }
+            }
+        }
+        if (n > 0) saveIndex();
+        return n;
     }
 
     private interface FileVisitor { void visit(File f); }
@@ -244,10 +339,9 @@ public class MainActivity extends Activity {
         List<File> out = new ArrayList<>();
         File[] list = folder.listFiles();
         if (list == null) return out;
-        String tag = String.format(Locale.US, "_V%03d_", vehicle);
         for (File f : list) {
             String n = f.getName().toLowerCase(Locale.US);
-            if (f.isFile() && f.getName().contains(tag) && (n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".png")))
+            if (f.isFile() && (n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".png")) && vehicleOf(f) == vehicle)
                 out.add(f);
         }
         Collections.sort(out);
@@ -374,29 +468,24 @@ public class MainActivity extends Activity {
                 p.optString("checkpoint"), p.optInt("vehicle"), p.optString("replace"), tmp))).start();
     }
 
-    /** Saves the new shot. With replacePath set, the new shot takes that photo's place (same file name). */
+    /** Saves the new shot. With replacePath set, the new shot replaces that photo (old file removed). */
     private String storePhoto(String vid, String section, String cid, int vehicle, String replacePath, File tmp) {
         try {
             File folder = cpFolder(vid, section, cid);
-            File target = null;
+            File target;
+            File old = null;
             boolean replaced = false;
+            String color = vehicleColor(vid, vehicle);
             synchronized (lock) {
                 folder.mkdirs();
                 if (replacePath != null && !replacePath.isEmpty()) {
-                    File old = new File(replacePath);
-                    if (old.getCanonicalFile().getParentFile().equals(folder.getCanonicalFile())) {
-                        target = old;
+                    File o = new File(replacePath);
+                    if (o.isFile() && o.getCanonicalFile().getParentFile().equals(folder.getCanonicalFile())) {
+                        old = o;
                         replaced = true;
                     }
                 }
-                if (target == null) {
-                    int shot = photosFor(vid, section, cid, vehicle).size() + 1;
-                    while (true) {
-                        target = new File(folder, String.format(Locale.US, "%s_%s_V%03d_%02d.jpg", vid, cid, vehicle, shot));
-                        if (!target.exists()) break;
-                        shot++;
-                    }
-                }
+                target = newPhotoFile(folder, vid, cid, color);
                 File part = new File(folder, target.getName() + ".part");
                 try (InputStream in = new FileInputStream(tmp); OutputStream out = new FileOutputStream(part)) {
                     copy(in, out);
@@ -407,11 +496,17 @@ public class MainActivity extends Activity {
                 }
                 if (!part.renameTo(target)) throw new IOException("could not finish writing the file");
                 tmp.delete();
+                index().put(relOf(target), vehicle);
+                if (old != null) {
+                    index().remove(relOf(old));
+                    if (old.delete()) scan(old);
+                }
                 Integer r = reserved.get(vid);
                 reserved.put(vid, Math.max(r == null ? 0 : r, vehicle));
             }
+            saveIndex();
             scan(target);
-            String rel = target.getAbsolutePath().substring(root().getAbsolutePath().length() + 1);
+            String rel = relOf(target);
             appendLog(now(), vid, String.format(Locale.US, "V%03d", vehicle), section, cid, rel, replaced ? "retaken" : "saved");
             JSONObject o = photoJson(target);
             o.put("ok", true).put("replaced", replaced);
@@ -591,7 +686,7 @@ public class MainActivity extends Activity {
                     bytes += f.length();
                     if (++i % 10 == 0) zipProgress(i, photos.size());
                 }
-                for (String extra : new String[]{"capture_log.csv", "vehicles.csv", "config.json"}) {
+                for (String extra : new String[]{"capture_log.csv", "vehicles.csv", "photo_index.json", "config.json"}) {
                     File f = new File(root(), extra);
                     if (f.isFile()) addToZip(zos, f, "PunchCapture/" + extra);
                 }
@@ -672,7 +767,8 @@ public class MainActivity extends Activity {
             return safe(() -> {
                 findVariant(loadConfig(), vid);
                 saveVehicleColor(vid, vehicle, color);
-                return new JSONObject().put("color", color);
+                int renamed = renameForColor(vid, vehicle, color);
+                return new JSONObject().put("color", color).put("renamed", renamed);
             });
         }
 
@@ -770,7 +866,9 @@ public class MainActivity extends Activity {
                 String rel = f.getAbsolutePath().substring(root().getAbsolutePath().length() + 1);
                 synchronized (lock) {
                     if (!f.delete()) throw new UserError("Could not delete the photo.");
+                    index().remove(rel);
                 }
+                saveIndex();
                 scan(f);
                 appendLog(now(), "", "", "", "", rel, "deleted");
                 return new JSONObject().put("ok", true);
