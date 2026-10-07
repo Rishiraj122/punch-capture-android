@@ -331,22 +331,23 @@ public class MainActivity extends Activity {
     private void launchCamera(String vid, String section, String cid, int vehicle, String replacePath) {
         File tmp = camTemp();
         if (tmp.exists()) tmp.delete();
+        String label = vid + " · " + cid + String.format(Locale.US, " · V%03d", vehicle);
         try {
+            JSONObject v = findVariant(loadConfig(), vid);
+            label = v.getString("name") + " · " + findCheckpoint(v, section, cid).getString("name")
+                    + String.format(Locale.US, " · V%03d", vehicle)
+                    + (replacePath != null && !replacePath.isEmpty() ? " · retake" : "");
             JSONObject p = new JSONObject().put("variant", vid).put("section", section)
                     .put("checkpoint", cid).put("vehicle", vehicle).put("replace", replacePath == null ? "" : replacePath);
             prefs.edit().putString("pending", p.toString()).apply();
-        } catch (JSONException ignored) { }
-        Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".files", tmp);
-        Intent i = new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE);
-        i.putExtra(android.provider.MediaStore.EXTRA_OUTPUT, uri);
-        i.setClipData(ClipData.newRawUri("photo", uri));
-        i.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        try {
-            startActivityForResult(i, REQ_CAMERA);
-        } catch (ActivityNotFoundException | SecurityException e) {
-            prefs.edit().remove("pending").apply();
-            deliver(err("No camera app could be opened on this device."));
+        } catch (Exception e) {
+            deliver(err("Could not open the camera: " + e.getMessage()));
+            return;
         }
+        Intent i = new Intent(this, CameraActivity.class);
+        i.putExtra(CameraActivity.EXTRA_OUT, tmp.getAbsolutePath());
+        i.putExtra(CameraActivity.EXTRA_LABEL, label);
+        startActivityForResult(i, REQ_CAMERA);
     }
 
     @Override
@@ -359,6 +360,11 @@ public class MainActivity extends Activity {
         if (pending == null) return;
         final JSONObject p;
         try { p = new JSONObject(pending); } catch (JSONException e) { return; }
+        if (resultCode == RESULT_FIRST_USER) {
+            String msg = data == null ? null : data.getStringExtra(CameraActivity.EXTRA_ERROR);
+            deliver(err(msg == null ? "The camera closed unexpectedly." : msg));
+            return;
+        }
         if (resultCode != RESULT_OK || !tmp.exists() || tmp.length() == 0) {
             try { p.put("cancelled", true); } catch (JSONException ignored) { }
             deliver(p.toString());
@@ -466,6 +472,36 @@ public class MainActivity extends Activity {
         } catch (Exception e) {
             return err(hasStorage() ? "Something went wrong: " + e.getMessage()
                     : "Storage access is off. Allow it to save photos.");
+        }
+    }
+
+    private static final Pattern VAR_ID = Pattern.compile("^[A-Za-z0-9_]+$");
+    private static final Pattern CP_ID = Pattern.compile("^[a-z0-9_]+$");
+
+    private static void validateItems(JSONArray arr, String what) throws JSONException {
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (int i = 0; i < arr.length(); i++) {
+            JSONObject c = arr.getJSONObject(i);
+            String id = c.optString("id"), name = c.optString("name").trim();
+            if (!CP_ID.matcher(id).matches() || name.isEmpty()) throw new UserError("Bad " + what + " entry: " + name);
+            if (!seen.add(id)) throw new UserError("'" + name + "' is listed twice in " + what + ".");
+        }
+    }
+
+    private static void validateConfig(JSONObject cfg) throws JSONException {
+        if (!cfg.has("colors")) cfg.put("colors", new JSONArray());
+        validateItems(cfg.getJSONArray("colors"), "colors");
+        JSONObject common = cfg.optJSONObject("common");
+        if (common == null) throw new UserError("Common checkpoints are missing.");
+        for (String s : SECTIONS) validateItems(common.getJSONArray(s), "common " + s);
+        JSONArray vars = cfg.getJSONArray("variants");
+        java.util.Set<String> ids = new java.util.HashSet<>();
+        for (int i = 0; i < vars.length(); i++) {
+            JSONObject v = vars.getJSONObject(i);
+            String id = v.optString("id");
+            if (!VAR_ID.matcher(id).matches() || v.optString("name").trim().isEmpty()) throw new UserError("Bad variant: " + id);
+            if (!ids.add(id.toLowerCase(Locale.US))) throw new UserError("Variant '" + v.optString("name") + "' already exists.");
+            for (String s : SECTIONS) validateItems(v.getJSONArray(s), v.optString("name") + " " + s);
         }
     }
 
@@ -618,139 +654,13 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public String getConfig() { return safe(MainActivity.this::loadConfig); }
 
+        /** The page edits the whole config (variants, common checkpoints, colors) and saves it here. */
         @JavascriptInterface
-        public String addVariant(String name, String copyFrom) {
+        public String putConfig(String json) {
             return safe(() -> {
                 synchronized (lock) {
-                    JSONObject cfg = loadConfig();
-                    String vid = slug(name);
-                    JSONArray arr = cfg.getJSONArray("variants");
-                    for (int i = 0; i < arr.length(); i++)
-                        if (arr.getJSONObject(i).getString("id").equals(vid))
-                            throw new UserError("Variant '" + name.trim() + "' already exists.");
-                    JSONObject v = new JSONObject().put("id", vid).put("name", name.trim());
-                    JSONObject src = (copyFrom == null || copyFrom.isEmpty()) ? null : findVariant(cfg, copyFrom);
-                    for (String s : SECTIONS)
-                        v.put(s, src == null ? new JSONArray() : new JSONArray(src.getJSONArray(s).toString()));
-                    arr.put(v);
-                    saveConfig(cfg);
-                    return cfg;
-                }
-            });
-        }
-
-        @JavascriptInterface
-        public String removeVariant(String vid) {
-            return safe(() -> {
-                synchronized (lock) {
-                    JSONObject cfg = loadConfig();
-                    findVariant(cfg, vid);
-                    JSONArray arr = cfg.getJSONArray("variants"), keep = new JSONArray();
-                    for (int i = 0; i < arr.length(); i++)
-                        if (!arr.getJSONObject(i).getString("id").equals(vid)) keep.put(arr.getJSONObject(i));
-                    cfg.put("variants", keep);
-                    saveConfig(cfg);
-                    return cfg;
-                }
-            });
-        }
-
-        /** allVariants=true adds it to every variant that doesn't have it yet. */
-        @JavascriptInterface
-        public String addCheckpoint(String vid, String section, String name, boolean allVariants) {
-            return safe(() -> {
-                synchronized (lock) {
-                    checkSection(section);
-                    JSONObject cfg = loadConfig();
-                    findVariant(cfg, vid);
-                    String cid = slug(name).toLowerCase(Locale.US);
-                    JSONArray vars = cfg.getJSONArray("variants");
-                    int added = 0;
-                    for (int i = 0; i < vars.length(); i++) {
-                        JSONObject v = vars.getJSONObject(i);
-                        if (!allVariants && !v.getString("id").equals(vid)) continue;
-                        JSONArray arr = v.getJSONArray(section);
-                        boolean has = false;
-                        for (int j = 0; j < arr.length(); j++)
-                            if (arr.getJSONObject(j).getString("id").equals(cid)) has = true;
-                        if (!has) {
-                            arr.put(new JSONObject().put("id", cid).put("name", name.trim()));
-                            added++;
-                        }
-                    }
-                    if (added == 0)
-                        throw new UserError("'" + name.trim() + "' is already in " + section
-                                + (allVariants ? " for every variant." : "."));
-                    saveConfig(cfg);
-                    return cfg;
-                }
-            });
-        }
-
-        /** allVariants=true removes it from every variant. Photos already taken stay on disk. */
-        @JavascriptInterface
-        public String removeCheckpoint(String vid, String section, String cid, boolean allVariants) {
-            return safe(() -> {
-                synchronized (lock) {
-                    checkSection(section);
-                    JSONObject cfg = loadConfig();
-                    findCheckpoint(findVariant(cfg, vid), section, cid);
-                    JSONArray vars = cfg.getJSONArray("variants");
-                    for (int i = 0; i < vars.length(); i++) {
-                        JSONObject v = vars.getJSONObject(i);
-                        if (!allVariants && !v.getString("id").equals(vid)) continue;
-                        JSONArray arr = v.getJSONArray(section), keep = new JSONArray();
-                        for (int j = 0; j < arr.length(); j++)
-                            if (!arr.getJSONObject(j).getString("id").equals(cid)) keep.put(arr.getJSONObject(j));
-                        v.put(section, keep);
-                    }
-                    saveConfig(cfg);
-                    return cfg;
-                }
-            });
-        }
-
-        /** Colors: allVariants=true adds/removes for every variant. */
-        @JavascriptInterface
-        public String addColor(String vid, String name, boolean allVariants) {
-            return safe(() -> {
-                synchronized (lock) {
-                    JSONObject cfg = loadConfig();
-                    findVariant(cfg, vid);
-                    String cid = slug(name).toLowerCase(Locale.US);
-                    JSONArray vars = cfg.getJSONArray("variants");
-                    int added = 0;
-                    for (int i = 0; i < vars.length(); i++) {
-                        JSONObject v = vars.getJSONObject(i);
-                        if (!allVariants && !v.getString("id").equals(vid)) continue;
-                        JSONArray arr = v.optJSONArray("colors");
-                        if (arr == null) { arr = new JSONArray(); v.put("colors", arr); }
-                        boolean has = false;
-                        for (int j = 0; j < arr.length(); j++) if (arr.getJSONObject(j).getString("id").equals(cid)) has = true;
-                        if (!has) { arr.put(new JSONObject().put("id", cid).put("name", name.trim())); added++; }
-                    }
-                    if (added == 0) throw new UserError("'" + name.trim() + "' is already a color" + (allVariants ? " for every variant." : "."));
-                    saveConfig(cfg);
-                    return cfg;
-                }
-            });
-        }
-
-        @JavascriptInterface
-        public String removeColor(String vid, String colorId, boolean allVariants) {
-            return safe(() -> {
-                synchronized (lock) {
-                    JSONObject cfg = loadConfig();
-                    findVariant(cfg, vid);
-                    JSONArray vars = cfg.getJSONArray("variants");
-                    for (int i = 0; i < vars.length(); i++) {
-                        JSONObject v = vars.getJSONObject(i);
-                        if (!allVariants && !v.getString("id").equals(vid)) continue;
-                        JSONArray arr = v.optJSONArray("colors"), keep = new JSONArray();
-                        if (arr == null) continue;
-                        for (int j = 0; j < arr.length(); j++) if (!arr.getJSONObject(j).getString("id").equals(colorId)) keep.put(arr.getJSONObject(j));
-                        v.put("colors", keep);
-                    }
+                    JSONObject cfg = new JSONObject(json);
+                    validateConfig(cfg);
                     saveConfig(cfg);
                     return cfg;
                 }

@@ -9,6 +9,14 @@ Offline photo capture for variant-wise checkpoint data collection. Runs on the Z
 
 New versions install over the old one. Photos are never touched by an update.
 
+## Settings
+- **☰ (home, top right):** colors (shared by all variants), variants (add / remove / reorder), and the **common checkpoints** (add / remove / reorder — applies to every variant).
+- **⚙ (vehicle screen):** this variant's own checkpoint list — turn common ones off, add extras, reorder, or reset to the common list.
+- **New vehicle** asks for the color from a dropdown.
+
+## Camera
+Built-in, photo-only, flash always off. Photos are saved upright in their pixels the way the Zebra was held (no sideways images, no EXIF rotation). Shutter: on-screen button, volume keys or the side triggers. Tap the preview to focus.
+
 ## Where photos go
 ```
 Internal storage/PunchCapture/
