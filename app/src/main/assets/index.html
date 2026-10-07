@@ -84,6 +84,12 @@ input[type=text],select{width:100%;font:inherit;padding:12px;border-radius:10px;
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 90px);
   background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:.9rem;z-index:30;max-width:90vw}
 .err{color:var(--warn);font-size:.9rem}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1px solid var(--line);background:var(--chip);color:var(--fg);padding:9px 13px;border-radius:999px;font-weight:600;font-size:.92rem}
+.chip[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.colorbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;font-size:.95rem}
+.btn[disabled]{opacity:.5}
+input[type=date],input[type=time]{width:100%;font:inherit;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--fg)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -93,7 +99,7 @@ input[type=text],select{width:100%;font:inherit;padding:12px;border-radius:10px;
 
 <script>
 const S = { cfg:null, screen:"home", variant:null, vehicle:null, section:"interior", progress:null,
-            busy:null, viewer:null, confirm:null, lastOnDisk:{}, storage:null, scopeAll:true };
+            busy:null, viewer:null, confirm:null, lastOnDisk:{}, storage:null, scopeAll:true, returnTo:"home", zip:null, pickColor:false };
 const $app = document.getElementById("app");
 
 const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -136,6 +142,7 @@ function render(){
   if(S.screen==="home") return renderHome();
   if(S.screen==="vehicle") return renderVehicle();
   if(S.screen==="setup") return renderSetup();
+  if(S.screen==="zip") return renderZip();
 }
 
 function renderPermission(){
@@ -158,7 +165,7 @@ function renderHome(){
       <div class="row-btns">
         <button class="btn primary" data-act="new" data-v="${v.id}">New vehicle</button>
         ${last ? `<button class="btn ghost" data-act="resume" data-v="${v.id}" data-n="${last}">Continue V${pad3(last)}</button>` : ""}
-        <button class="btn ghost" data-act="setup" data-v="${v.id}" style="flex:0 0 auto;min-width:0">Checkpoints</button>
+        <button class="btn ghost" data-act="setup" data-v="${v.id}" style="flex:0 0 auto;min-width:0">Settings</button>
       </div></div>`;
   }).join("");
   $app.innerHTML = `
@@ -173,6 +180,12 @@ function renderHome(){
       </select>
       <button class="btn primary" data-act="addVariant">Add variant</button>
       <div class="err" id="varErr"></div>
+    </div>
+    <p class="label">Export</p>
+    <div class="card">
+      <div><h2 style="margin:0;font-size:1.05rem">Zip photos</h2>
+      <div class="meta">Pick a date and time range. The zip keeps the variant / checkpoint folders and goes to Download/PunchCapture_Zips.</div></div>
+      <button class="btn primary" data-act="openZip">Zip photos…</button>
     </div>
     <p class="meta" style="margin-top:16px">Saving to <span class="cp-file">${esc(S.storage ? S.storage.root : "")}</span><br>
       Connect to a laptop with USB (File transfer) and copy the PunchCapture folder. · v${esc(S.storage ? S.storage.version : "")}</p>`;
@@ -189,7 +202,7 @@ function renderVehicle(){
     const busy = S.busy && S.busy.section===S.section && S.busy.cp===c.id;
     return `<li class="cp ${shots.length?"done":""} ${isNext?"next":""}" id="cp-${c.id}">
       <div><div class="cp-name">${esc(c.name)}</div>
-        <div class="cp-file">${S.section}/${c.id}/ · ${shots.length} shot${shots.length===1?"":"s"}</div></div>
+        <div class="cp-file">${S.section}/${c.id}_${v.id}/ · ${shots.length} shot${shots.length===1?"":"s"}</div></div>
       <button class="shoot" data-act="shoot" data-s="${S.section}" data-c="${c.id}">${shots.length?"+ Angle":"Shoot"}</button>
       ${busy?`<div class="busy">Saving photo…</div>`:""}
       <div class="thumbs">${shots.map((ph,i)=>`<button data-act="view" data-s="${S.section}" data-c="${c.id}" data-i="${i}" aria-label="View photo"><img src="${esc(ph.thumb)}" alt=""></button>`).join("")}</div>
@@ -199,7 +212,9 @@ function renderVehicle(){
     <header class="top">
       <button class="icon-btn" data-act="home" aria-label="Back to variants">‹ Back</button>
       <h1>${esc(v.name)}</h1><span class="veh">V${pad3(S.vehicle)}</span>
+      <button class="icon-btn" data-act="settings" aria-label="Variant settings">⚙ Settings</button>
     </header>
+    ${colorRow(v)}
     <div class="tabs" role="tablist">
       <button class="tab" role="tab" aria-selected="${S.section==="interior"}" data-act="tab" data-s="interior">Interior<span class="n">${ci.done}/${ci.total}</span></button>
       <button class="tab" role="tab" aria-selected="${S.section==="exterior"}" data-act="tab" data-s="exterior">Exterior<span class="n">${ce.done}/${ce.total}</span></button>
@@ -213,6 +228,17 @@ function renderVehicle(){
             : `<button class="btn primary" data-act="new" data-v="${v.id}">All done · Next vehicle</button>`}
       ${nxt ? `<button class="btn ghost" data-act="new" data-v="${v.id}">Next vehicle</button>` : ""}
     </div></div>`;
+}
+
+function colorRow(v){
+  const colors=v.colors||[], cur=(S.progress&&S.progress.color)||"";
+  if(!colors.length) return cur ? `<div class="meta" style="margin-bottom:10px">Color: <b>${esc(cur)}</b></div>` : "";
+  if(cur && !S.pickColor) return `<div class="colorbar"><span>Color: <b>${esc(cur)}</b></span>
+      <button class="icon-btn" data-act="pickColor">Change</button></div>`;
+  return `<div class="card" style="margin-bottom:12px;padding:12px">
+      <div class="meta">${cur ? "Change this vehicle's color" : "Which color is this vehicle?"}</div>
+      <div class="chips">${colors.map(c=>`<button class="chip" aria-pressed="${c.name===cur}" data-act="setColor" data-n="${esc(c.name)}">${esc(c.name)}</button>`).join("")}
+      ${cur ? `<button class="chip" data-act="setColor" data-n="">No color</button>` : ""}</div></div>`;
 }
 
 function viewerHTML(){
@@ -242,13 +268,21 @@ function renderSetup(){
     <div class="add" style="margin-top:8px"><input type="text" id="add-${s}" placeholder="Add ${s} checkpoint" autocomplete="off">
       <button class="btn ghost" data-act="addCp" data-s="${s}" style="padding:10px 14px">Add</button></div>`;
   $app.innerHTML = `
-    <header class="top"><button class="icon-btn" data-act="home">‹ Back</button><h1>Checkpoints</h1></header>
+    <header class="top"><button class="icon-btn" data-act="settingsBack">‹ Back</button><h1>${esc(v.name)} settings</h1></header>
     <p class="label" style="margin-top:4px">Apply changes to</p>
     <div class="tabs" role="tablist">
       <button class="tab" role="tab" aria-selected="${S.scopeAll}" data-act="scope" data-all="1">All variants</button>
       <button class="tab" role="tab" aria-selected="${!S.scopeAll}" data-act="scope" data-all="0">Only ${esc(v.name)}</button>
     </div>
     <div class="meta" style="margin-top:8px">Showing ${esc(v.name)}'s list. ${S.scopeAll ? "Adding or removing here changes every variant." : "Adding or removing here changes this variant only."} Removing a checkpoint hides it from the list; photos already taken stay in their folder.</div>
+    <p class="label">Colors · ${(v.colors||[]).length}</p>
+    <ul class="edit-list">${(v.colors||[]).map(c=>`<li><span>${esc(c.name)}</span>
+      ${S.confirm==="color/"+c.id
+        ? `<button class="x" data-act="delColor" data-c="${c.id}">${S.scopeAll?"Remove from all":"Remove"}</button><button class="x" style="color:var(--muted)" data-act="cancelConfirm">Keep</button>`
+        : `<button class="x" data-act="askDelColor" data-c="${c.id}" aria-label="Remove ${esc(c.name)}">✕</button>`}
+      </li>`).join("") || `<li class="empty">No colors yet. Add the ones this variant comes in; you'll pick one per vehicle.</li>`}</ul>
+    <div class="add" style="margin-top:8px"><input type="text" id="add-color" placeholder="Add color, e.g. Tornado Blue" autocomplete="off">
+      <button class="btn ghost" data-act="addColor" style="padding:10px 14px">Add</button></div>
     ${sec("interior")}${sec("exterior")}
     <div class="err" id="cpErr" style="margin-top:8px"></div>
     <p class="label">Variant</p>
@@ -258,10 +292,57 @@ function renderSetup(){
       : `<button class="btn danger" data-act="askDelVariant" style="width:100%">Remove ${esc(v.name)}</button>`}`;
 }
 
+function two(n){ return String(n).padStart(2,"0"); }
+function todayStr(d=new Date()){ return `${d.getFullYear()}-${two(d.getMonth()+1)}-${two(d.getDate())}`; }
+function mb(b){ return b >= 1e9 ? (b/1e9).toFixed(2)+" GB" : (b/1e6).toFixed(1)+" MB"; }
+function zipRange(){
+  const z=S.zip, [y,m,d]=z.date.split("-").map(Number);
+  const [fh,fm]=z.from.split(":").map(Number), [th,tm]=z.to.split(":").map(Number);
+  const from=new Date(y,m-1,d,fh,fm,0,0).getTime(), to=new Date(y,m-1,d,th,tm,59,999).getTime();
+  return {from, to, label:`${z.date}_${z.from.replace(":","")}-${z.to.replace(":","")}`};
+}
+function refreshZipCount(){
+  const r=zipRange();
+  if(r.to < r.from){ S.zip.count=null; S.zip.msg="The end time is before the start time."; return; }
+  const c=nat("zipCount", r.from, r.to); S.zip.count=c.count; S.zip.bytes=c.bytes; S.zip.msg="";
+}
+
+function renderZip(){
+  const z=S.zip;
+  $app.innerHTML = `
+    <header class="top"><button class="icon-btn" data-act="home">‹ Back</button><h1>Zip photos</h1></header>
+    <div class="card">
+      <label class="meta" for="zDate">Date</label>
+      <input type="date" id="zDate" value="${z.date}" max="${todayStr()}">
+      <div class="row-btns">
+        <div style="flex:1;min-width:120px"><label class="meta" for="zFrom">From</label><input type="time" id="zFrom" value="${z.from}"></div>
+        <div style="flex:1;min-width:120px"><label class="meta" for="zTo">To</label><input type="time" id="zTo" value="${z.to}"></div>
+      </div>
+      <div class="meta" id="zCount">${z.msg ? `<span class="err">${esc(z.msg)}</span>` :
+        z.count==null ? "" : z.count ? `<b>${z.count}</b> photo${z.count===1?"":"s"} · about ${mb(z.bytes)}` : "No photos in this range."}</div>
+      <button class="btn primary" data-act="makeZip" ${(z.busy||!z.count)?"disabled":""}>${z.busy ? esc(z.busy) : "Make zip"}</button>
+    </div>
+    ${z.result ? `<div class="card" style="margin-top:12px;border-color:var(--done)">
+        <div><b>Zip ready</b> · ${z.result.count} photos · ${mb(z.result.bytes)}</div>
+        <div class="cp-file">${esc(z.result.path)}</div>
+        <div class="meta">Copy it over USB from Download/PunchCapture_Zips, or send it to another phone.</div>
+        <button class="btn ghost" data-act="shareZip">Send zip…</button>
+      </div>` : ""}
+    <p class="meta" style="margin-top:12px">Photos are matched by the time they were taken (or last retaken). The zip also includes capture_log.csv, vehicles.csv and config.json.</p>`;
+}
+
+window.onZipProgress = function(done,total){ if(S.zip){ S.zip.busy=`Zipping ${done} of ${total}…`; if(S.screen==="zip") render(); } };
+window.onZip = function(raw){
+  const r=JSON.parse(raw); if(!S.zip) return;
+  S.zip.busy=null;
+  if(r.error){ toast(r.error); } else { S.zip.result=r; buzz(40); toast("Zip saved"); }
+  if(S.screen==="zip") render();
+};
+
 // ---------- actions ----------
 function openVehicle(vid, n){
   S.variant=vid; S.vehicle=n; S.section="interior"; S.screen="vehicle"; S.viewer=null; S.confirm=null;
-  remember(); loadProgress(); render(); window.scrollTo(0,0);
+  S.pickColor=false; remember(); loadProgress(); render(); window.scrollTo(0,0);
 }
 
 function goHome(){
@@ -273,6 +354,7 @@ function goHome(){
 window.goBack = function(){
   if(S.viewer){ S.viewer=null; S.confirm=null; render(); return true; }
   if(S.confirm){ S.confirm=null; render(); return true; }
+  if(S.screen==="setup" && S.returnTo==="vehicle"){ S.screen="vehicle"; S.confirm=null; loadProgress(); render(); return true; }
   if(S.screen!=="home"){ goHome(); return true; }
   return false;
 };
@@ -311,7 +393,27 @@ $app.addEventListener("click", e => {
     else if(a==="home"){ goHome(); }
     else if(a==="new"){ const r=nat("newVehicle", b.dataset.v); openVehicle(b.dataset.v, r.vehicle); toast(`Started V${pad3(r.vehicle)}`); }
     else if(a==="resume"){ openVehicle(b.dataset.v, +b.dataset.n); }
-    else if(a==="setup"){ S.variant=b.dataset.v; S.screen="setup"; S.confirm=null; S.scopeAll=true; render(); window.scrollTo(0,0); }
+    else if(a==="setup"){ S.variant=b.dataset.v; S.screen="setup"; S.returnTo="home"; S.confirm=null; S.scopeAll=true; render(); window.scrollTo(0,0); }
+    else if(a==="settings"){ S.screen="setup"; S.returnTo="vehicle"; S.confirm=null; S.scopeAll=true; render(); window.scrollTo(0,0); }
+    else if(a==="settingsBack"){ if(S.returnTo==="vehicle"){ S.screen="vehicle"; S.confirm=null; loadProgress(); render(); window.scrollTo(0,0); } else goHome(); }
+    else if(a==="pickColor"){ S.pickColor=true; render(); }
+    else if(a==="setColor"){ nat("setVehicleColor", S.variant, S.vehicle, b.dataset.n); S.pickColor=false; loadProgress(); render(); toast(b.dataset.n ? `V${pad3(S.vehicle)} · ${b.dataset.n}` : "Color cleared"); }
+    else if(a==="addColor"){
+      const inp=document.getElementById("add-color"), name=inp.value.trim();
+      if(!name){ document.getElementById("cpErr").textContent="Type a color name first."; return; }
+      S.cfg = nat("addColor", S.variant, name, S.scopeAll); render();
+      toast(S.scopeAll ? `Added ${name} to all variants` : `Added ${name} to ${V().name}`);
+      document.getElementById("add-color")?.focus();
+    }
+    else if(a==="askDelColor"){ S.confirm="color/"+b.dataset.c; render(); }
+    else if(a==="delColor"){ S.cfg = nat("removeColor", S.variant, b.dataset.c, S.scopeAll); S.confirm=null; render(); }
+    else if(a==="openZip"){
+      const now=new Date();
+      S.zip={date:todayStr(now), from:"00:00", to:`${two(now.getHours())}:${two(now.getMinutes())}`, count:null, bytes:0, busy:null, result:null, msg:""};
+      S.screen="zip"; refreshZipCount(); render(); window.scrollTo(0,0);
+    }
+    else if(a==="makeZip"){ const r=zipRange(); S.zip.busy="Zipping…"; S.zip.result=null; render(); Native.makeZip(r.from, r.to, r.label); }
+    else if(a==="shareZip"){ nat("shareZip", S.zip.result.path); }
     else if(a==="tab"){ S.section=b.dataset.s; render(); }
     else if(a==="shoot"){
       S.busy={section:b.dataset.s, cp:b.dataset.c}; S.section=b.dataset.s; render();
@@ -348,7 +450,7 @@ $app.addEventListener("click", e => {
     else if(a==="askDelCp"){ S.confirm=b.dataset.s+"/"+b.dataset.c; render(); }
     else if(a==="delCp"){ S.cfg = nat("removeCheckpoint", S.variant, b.dataset.s, b.dataset.c, S.scopeAll); S.confirm=null; render(); toast(S.scopeAll ? "Removed from all variants" : "Removed from " + V().name); }
     else if(a==="askDelVariant"){ S.confirm="variant"; render(); }
-    else if(a==="delVariant"){ S.cfg = nat("removeVariant", S.variant); S.confirm=null; goHome(); }
+    else if(a==="delVariant"){ S.cfg = nat("removeVariant", S.variant); S.confirm=null; S.returnTo="home"; goHome(); }
   }catch(err){
     S.busy=null;
     const box=document.getElementById("cpErr")||document.getElementById("varErr");
@@ -356,10 +458,22 @@ $app.addEventListener("click", e => {
   }
 });
 
+$app.addEventListener("change", e => {
+  if(S.screen!=="zip") return;
+  const id=e.target.id;
+  if(id==="zDate") S.zip.date=e.target.value || todayStr();
+  else if(id==="zFrom") S.zip.from=e.target.value || "00:00";
+  else if(id==="zTo") S.zip.to=e.target.value || "23:59";
+  else return;
+  try{ refreshZipCount(); }catch(err){ S.zip.msg=err.message; }
+  S.zip.result=null; render();
+});
+
 $app.addEventListener("keydown", e => {
   if(e.key!=="Enter" || e.target.tagName!=="INPUT") return;
   const id=e.target.id;
   if(id==="newVarName") document.querySelector('[data-act="addVariant"]').click();
+  if(id==="add-color") return document.querySelector('[data-act="addColor"]').click();
   if(id.startsWith("add-")) document.querySelector(`[data-act="addCp"][data-s="${id.slice(4)}"]`).click();
 });
 

@@ -47,6 +47,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.zip.Deflater;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 public class MainActivity extends Activity {
 
@@ -207,8 +210,37 @@ public class MainActivity extends Activity {
         }
     }
 
+    /** Checkpoint folder is named <checkpoint>_<variant>, e.g. orvm_left_Punch_Pure. */
+    private File cpFolder(String vid, String section, String cid) {
+        File parent = new File(root(), vid + "/" + section);
+        File folder = new File(parent, cid + "_" + vid);
+        File old = new File(parent, cid);                 // layout used by v1.0.1
+        if (old.isDirectory()) {
+            synchronized (lock) {
+                if (!folder.exists()) {
+                    if (old.renameTo(folder)) scanTree(folder);
+                } else {
+                    File[] list = old.listFiles();
+                    if (list != null) for (File f : list) {
+                        File to = new File(folder, f.getName());
+                        if (!to.exists() && f.renameTo(to)) scan(to, f);
+                    }
+                    String[] left = old.list();
+                    if (left != null && left.length == 0) old.delete();
+                }
+            }
+        }
+        return folder;
+    }
+
+    private void scanTree(File dir) {
+        List<File> all = new ArrayList<>();
+        walk(dir, all::add);
+        if (!all.isEmpty()) scan(all.toArray(new File[0]));
+    }
+
     private List<File> photosFor(String vid, String section, String cid, int vehicle) {
-        File folder = new File(root(), vid + "/" + section + "/" + cid);
+        File folder = cpFolder(vid, section, cid);
         List<File> out = new ArrayList<>();
         File[] list = folder.listFiles();
         if (list == null) return out;
@@ -339,7 +371,7 @@ public class MainActivity extends Activity {
     /** Saves the new shot. With replacePath set, the new shot takes that photo's place (same file name). */
     private String storePhoto(String vid, String section, String cid, int vehicle, String replacePath, File tmp) {
         try {
-            File folder = new File(root(), vid + "/" + section + "/" + cid);
+            File folder = cpFolder(vid, section, cid);
             File target = null;
             boolean replaced = false;
             synchronized (lock) {
@@ -378,6 +410,7 @@ public class MainActivity extends Activity {
             JSONObject o = photoJson(target);
             o.put("ok", true).put("replaced", replaced);
             o.put("variant", vid); o.put("section", section); o.put("checkpoint", cid); o.put("vehicle", vehicle);
+            o.put("folder", folder.getName());
             return o.toString();
         } catch (UserError e) {
             return err(e.getMessage());
@@ -434,6 +467,131 @@ public class MainActivity extends Activity {
             return err(hasStorage() ? "Something went wrong: " + e.getMessage()
                     : "Storage access is off. Allow it to save photos.");
         }
+    }
+
+    // ---------- vehicle colors ----------
+    private File vehiclesFile() { return new File(root(), "vehicles.json"); }
+
+    private JSONObject loadVehicles() {
+        try {
+            File f = vehiclesFile();
+            return f.exists() ? new JSONObject(readText(f)) : new JSONObject();
+        } catch (Exception e) {
+            return new JSONObject();
+        }
+    }
+
+    private String vehicleColor(String vid, int vehicle) {
+        JSONObject v = loadVehicles().optJSONObject(vid);
+        return v == null ? "" : v.optString(String.valueOf(vehicle), "");
+    }
+
+    /** vehicles.json for the app, vehicles.csv (variant, vehicle, color) for the laptop. */
+    private void saveVehicleColor(String vid, int vehicle, String color) throws IOException, JSONException {
+        synchronized (lock) {
+            JSONObject all = loadVehicles();
+            JSONObject v = all.optJSONObject(vid);
+            if (v == null) { v = new JSONObject(); all.put(vid, v); }
+            if (color == null || color.isEmpty()) v.remove(String.valueOf(vehicle));
+            else v.put(String.valueOf(vehicle), color);
+            writeText(vehiclesFile(), all.toString(2));
+            StringBuilder csv = new StringBuilder("variant,vehicle,color\n");
+            List<String> vids = new ArrayList<>();
+            for (java.util.Iterator<String> it = all.keys(); it.hasNext(); ) vids.add(it.next());
+            Collections.sort(vids);
+            for (String id : vids) {
+                JSONObject m = all.getJSONObject(id);
+                List<Integer> nums = new ArrayList<>();
+                for (java.util.Iterator<String> it = m.keys(); it.hasNext(); ) nums.add(Integer.parseInt(it.next()));
+                Collections.sort(nums);
+                for (int n : nums)
+                    csv.append(id).append(',').append(String.format(Locale.US, "V%03d", n)).append(',')
+                       .append(m.getString(String.valueOf(n)).replace(",", " ")).append('\n');
+            }
+            File out = new File(root(), "vehicles.csv");
+            writeText(out, csv.toString());
+            scan(vehiclesFile(), out);
+        }
+    }
+
+    // ---------- zip export ----------
+    private File zipDir() {
+        return new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "PunchCapture_Zips");
+    }
+
+    private List<File> photosBetween(long from, long to) {
+        List<File> out = new ArrayList<>();
+        File[] variants = root().listFiles();
+        if (variants == null) return out;
+        for (File v : variants) {
+            if (!v.isDirectory()) continue;
+            walk(v, f -> {
+                String n = f.getName().toLowerCase(Locale.US);
+                long t = f.lastModified();
+                if ((n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".png")) && t >= from && t <= to) out.add(f);
+            });
+        }
+        Collections.sort(out);
+        return out;
+    }
+
+    private void makeZip(long from, long to, String label) {
+        try {
+            List<File> photos = photosBetween(from, to);
+            if (photos.isEmpty()) { zipDone(err("No photos were taken in that time range.")); return; }
+            File dir = zipDir();
+            dir.mkdirs();
+            File zip = new File(dir, "PunchCapture_" + label + ".zip");
+            int k = 2;
+            while (zip.exists()) zip = new File(dir, "PunchCapture_" + label + "_" + (k++) + ".zip");
+            File part = new File(zip.getPath() + ".part");
+            String base = root().getAbsolutePath();
+            long bytes = 0;
+            try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(part))) {
+                zos.setLevel(Deflater.NO_COMPRESSION);   // photos are already compressed; this keeps it fast
+                int i = 0;
+                for (File f : photos) {
+                    addToZip(zos, f, "PunchCapture/" + f.getAbsolutePath().substring(base.length() + 1));
+                    bytes += f.length();
+                    if (++i % 10 == 0) zipProgress(i, photos.size());
+                }
+                for (String extra : new String[]{"capture_log.csv", "vehicles.csv", "config.json"}) {
+                    File f = new File(root(), extra);
+                    if (f.isFile()) addToZip(zos, f, "PunchCapture/" + extra);
+                }
+            }
+            if (!part.renameTo(zip)) throw new IOException("could not finish the zip file");
+            scan(zip);
+            zipDone(new JSONObject().put("ok", true).put("path", zip.getAbsolutePath()).put("name", zip.getName())
+                    .put("count", photos.size()).put("bytes", zip.length()).toString());
+        } catch (Exception e) {
+            zipDone(err("Zip not made: " + e.getMessage()));
+        }
+    }
+
+    private static void addToZip(ZipOutputStream zos, File f, String name) throws IOException {
+        ZipEntry e = new ZipEntry(name);
+        e.setTime(f.lastModified());
+        zos.putNextEntry(e);
+        try (InputStream in = new FileInputStream(f)) { copy(in, zos); }
+        zos.closeEntry();
+    }
+
+    private void zipProgress(int done, int total) {
+        runOnUiThread(() -> web.evaluateJavascript("window.onZipProgress && window.onZipProgress(" + done + "," + total + ")", null));
+    }
+
+    private void zipDone(String json) {
+        runOnUiThread(() -> web.evaluateJavascript("window.onZip && window.onZip(" + JSONObject.quote(json) + ")", null));
+    }
+
+    private void shareFile(File f) {
+        Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".files", f);
+        Intent i = new Intent(Intent.ACTION_SEND);
+        i.setType("application/zip");
+        i.putExtra(Intent.EXTRA_STREAM, uri);
+        i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        startActivity(Intent.createChooser(i, "Send zip"));
     }
 
     // ---------- bridge for the page ----------
@@ -552,6 +710,91 @@ public class MainActivity extends Activity {
             });
         }
 
+        /** Colors: allVariants=true adds/removes for every variant. */
+        @JavascriptInterface
+        public String addColor(String vid, String name, boolean allVariants) {
+            return safe(() -> {
+                synchronized (lock) {
+                    JSONObject cfg = loadConfig();
+                    findVariant(cfg, vid);
+                    String cid = slug(name).toLowerCase(Locale.US);
+                    JSONArray vars = cfg.getJSONArray("variants");
+                    int added = 0;
+                    for (int i = 0; i < vars.length(); i++) {
+                        JSONObject v = vars.getJSONObject(i);
+                        if (!allVariants && !v.getString("id").equals(vid)) continue;
+                        JSONArray arr = v.optJSONArray("colors");
+                        if (arr == null) { arr = new JSONArray(); v.put("colors", arr); }
+                        boolean has = false;
+                        for (int j = 0; j < arr.length(); j++) if (arr.getJSONObject(j).getString("id").equals(cid)) has = true;
+                        if (!has) { arr.put(new JSONObject().put("id", cid).put("name", name.trim())); added++; }
+                    }
+                    if (added == 0) throw new UserError("'" + name.trim() + "' is already a color" + (allVariants ? " for every variant." : "."));
+                    saveConfig(cfg);
+                    return cfg;
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public String removeColor(String vid, String colorId, boolean allVariants) {
+            return safe(() -> {
+                synchronized (lock) {
+                    JSONObject cfg = loadConfig();
+                    findVariant(cfg, vid);
+                    JSONArray vars = cfg.getJSONArray("variants");
+                    for (int i = 0; i < vars.length(); i++) {
+                        JSONObject v = vars.getJSONObject(i);
+                        if (!allVariants && !v.getString("id").equals(vid)) continue;
+                        JSONArray arr = v.optJSONArray("colors"), keep = new JSONArray();
+                        if (arr == null) continue;
+                        for (int j = 0; j < arr.length(); j++) if (!arr.getJSONObject(j).getString("id").equals(colorId)) keep.put(arr.getJSONObject(j));
+                        v.put("colors", keep);
+                    }
+                    saveConfig(cfg);
+                    return cfg;
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public String setVehicleColor(String vid, int vehicle, String color) {
+            return safe(() -> {
+                findVariant(loadConfig(), vid);
+                saveVehicleColor(vid, vehicle, color);
+                return new JSONObject().put("color", color);
+            });
+        }
+
+        @JavascriptInterface
+        public String zipCount(double from, double to) {
+            return safe(() -> {
+                List<File> photos = photosBetween((long) from, (long) to);
+                long bytes = 0;
+                for (File f : photos) bytes += f.length();
+                return new JSONObject().put("count", photos.size()).put("bytes", bytes);
+            });
+        }
+
+        @JavascriptInterface
+        public void makeZip(double from, double to, String label) {
+            String l = label.replaceAll("[^A-Za-z0-9_-]", "");
+            new Thread(() -> MainActivity.this.makeZip((long) from, (long) to, l.isEmpty() ? "export" : l)).start();
+        }
+
+        @JavascriptInterface
+        public String shareZip(String path) {
+            return safe(() -> {
+                File f = new File(path);
+                if (!f.getCanonicalPath().startsWith(zipDir().getCanonicalPath() + File.separator) || !f.isFile())
+                    throw new UserError("Zip not found.");
+                runOnUiThread(() -> {
+                    try { shareFile(f); } catch (Exception e) { zipDone(err("Could not open sharing: " + e.getMessage())); }
+                });
+                return new JSONObject().put("ok", true);
+            });
+        }
+
         @JavascriptInterface
         public String lastVehicles() {
             return safe(() -> {
@@ -593,6 +836,7 @@ public class MainActivity extends Activity {
                     }
                     out.put(s, sec);
                 }
+                out.put("color", vehicleColor(vid, vehicle));
                 return out;
             });
         }

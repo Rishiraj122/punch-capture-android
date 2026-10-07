@@ -12,11 +12,14 @@ New versions install over the old one. Photos are never touched by an update.
 ## Where photos go
 ```
 Internal storage/PunchCapture/
-  <Variant>/interior/<checkpoint>/<Variant>_<checkpoint>_V001_01.jpg
-  <Variant>/exterior/<checkpoint>/...
-  config.json        ← checkpoint lists per variant (also editable in the app)
-  capture_log.csv    ← time, variant, vehicle, section, checkpoint, file, saved/deleted
+  <Variant>/interior/<checkpoint>_<Variant>/<Variant>_<checkpoint>_V001_01.jpg
+  <Variant>/exterior/<checkpoint>_<Variant>/...
+  config.json        ← checkpoints and colors per variant (also editable in the app)
+  capture_log.csv    ← time, variant, vehicle, section, checkpoint, file, saved/retaken/deleted
+  vehicles.csv       ← color chosen for each vehicle
 ```
+To zip: home screen → **Zip photos…**, pick the date and time range. Zips go to `Download/PunchCapture_Zips/`.
+
 To copy: plug the Zebra into the laptop with USB, choose **File transfer**, and copy the `PunchCapture` folder.
 
 ## Build
