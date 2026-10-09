@@ -61,6 +61,25 @@ header.top h1{font-size:1.28rem;margin:0;flex:1;min-width:0;white-space:nowrap;o
 .label.blue{color:var(--primary)}
 .meta{font-size:.86rem;color:var(--muted)}
 .err{color:var(--bad);font-size:.9rem}
+#cam{position:fixed;inset:0;z-index:40;background:#000;color:#fff;display:flex;flex-direction:column}
+#cam[hidden]{display:none}
+.cam-top{display:flex;align-items:center;gap:12px;padding:calc(env(safe-area-inset-top,0px) + 10px) 14px 10px;background:rgba(0,0,0,.72);z-index:2}
+.cam-x{width:52px;height:52px;border-radius:14px;border:1px solid #3a4558;background:#151d2c;color:#fff;display:grid;place-items:center;flex:0 0 auto}
+.cam-x svg{width:28px;height:28px}
+.cam-title{flex:1;min-width:0}
+.cam-title b{display:block;font-size:1.65rem;line-height:1.15;font-weight:800;letter-spacing:-.01em}
+.cam-title span{display:block;font:.85rem var(--f-num);color:#a9b4c4;margin-top:2px}
+.cam-q{font:600 .8rem var(--f-ui);background:#1769e8;border-radius:999px;padding:4px 10px;white-space:nowrap}
+.cam-q[hidden]{display:none}
+.cam-stage{flex:1;min-height:0;position:relative;display:grid;place-items:center;overflow:hidden}
+.cam-stage video,.cam-stage img{width:100%;height:100%;object-fit:contain;background:#000}
+.cam-msg{position:absolute;left:16px;right:16px;top:40%;text-align:center;font-weight:600;color:#c9d2de}
+.cam-bottom{padding:14px 16px calc(env(safe-area-inset-bottom,0px) + 20px);background:rgba(0,0,0,.72);z-index:2}
+.cam-bottom[hidden]{display:none}
+.cam-live{display:flex;justify-content:center}
+.shutter{width:84px;height:84px;border-radius:50%;border:5px solid #fff;background:#fff;box-shadow:inset 0 0 0 4px #000}
+.shutter:active{transform:scale(.94)}
+.shutter[disabled]{opacity:.5}
 .review{position:fixed;inset:0;background:#070b14;z-index:22;display:flex;flex-direction:column;color:#e8eef6;
   padding:calc(env(safe-area-inset-top,0px) + 10px) 16px calc(env(safe-area-inset-bottom,0px) + 18px);gap:10px}
 .review .rv-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
@@ -303,6 +322,26 @@ select.compact{width:auto;min-height:40px;padding:8px 12px;border-radius:999px;f
 <body>
 <div class="wrap" id="app"></div>
 <div id="toast" class="toast" hidden></div>
+<div id="cam" hidden>
+  <div class="cam-top">
+    <button class="cam-x" id="camClose" aria-label="Close camera"></button>
+    <div class="cam-title"><b id="camName">Checkpoint</b><span id="camSub"></span></div>
+    <span class="cam-q" id="camQ" hidden></span>
+  </div>
+  <div class="cam-stage">
+    <video id="camVideo" playsinline autoplay muted></video>
+    <img id="camShot" alt="" hidden>
+    <div class="cam-msg" id="camMsg" hidden></div>
+  </div>
+  <div class="cam-bottom cam-live" id="camLive"><button class="shutter" id="camShutter" aria-label="Take photo"></button></div>
+  <div class="cam-bottom" id="camReview" hidden>
+    <div class="rv-btns">
+      <button class="rv-btn" id="camRetake"><span class="c"></span>Retake</button>
+      <button class="rv-btn ok" id="camOk"><span class="c"></span>Correct</button>
+      <button class="rv-btn next" id="camNext"><span class="c"></span><span id="camNextLbl">Next</span><small id="camNextName"></small></button>
+    </div>
+  </div>
+</div>
 <script src="bridge.js"></script>
 <script>
 // ---------- icons ----------
@@ -578,7 +617,7 @@ function renderLaptop(){
       <button class="btn soft" data-act="lapRefresh">${ic("next","sm")}Refresh</button>
     </div>
     <div class="vlist">${cards || `<div class="card empty">No variants yet.</div>`}</div>
-    <p class="meta" style="margin-top:16px">Each download is a folder named after the variant with files like <span class="mono">Punch_Pure_Calypso_Red_20261009_101512_exterior_orvm_left.jpg</span>, plus photos.csv (vehicle number, quality check). Zips are made on the phone while they download. Large folders take a while over the hotspot.</p>
+    <p class="meta" style="margin-top:16px">Each download is a folder named after the variant with files like <span class="mono">Punch_Pure_Calypso_Red_20261009_101512_exterior_orvm_left.jpg</span> in the camera's original format and resolution, plus photos.csv (vehicle number per file). Zips are made on the phone while they download. Large folders take a while over the hotspot.</p>
     ${S.viewer ? viewerHTML() : ""}`;
 }
 function loadLaptop(){ S.lap = S.lap || {}; S.lap.data = nat("variants"); S.lap.photos = S.lap.photos || {}; }
@@ -1091,6 +1130,7 @@ function setupBack(){
   else goHome();
 }
 window.goBack = function(){
+  if(!$c("cam").hidden){ camClose(); return true; }
   if(S.review){ if(!S.review.uploading) closeReview(); return true; }
   if(S.menu){ S.menu=false; render(); return true; }
   if(S.sheet){ S.sheet=null; render(); return true; }
@@ -1112,6 +1152,7 @@ window.onNativeResume = function(){
   if(S.storage.granted && !was){ loadConfig(); loadLastVehicles(); render(); }
 };
 window.onCaptured = function(url, p){
+  return;   // no extra review screen: the camera app already asked to keep or retake
   if(S.screen!=="vehicle" || S.variant!==p.variant || S.vehicle!==p.vehicle) return;
   if(S.review && S.review.url) try{ URL.revokeObjectURL(S.review.url); }catch(e){}
   S.review = {url, section:p.section, cp:p.checkpoint, vehicle:p.vehicle, uploading:true, result:null, path:null, error:null};
@@ -1137,7 +1178,7 @@ window.onPhoto = function(raw){
   if(r.cancelled){ render(); return; }
   const warn = r.result && r.result.status==="warn";
   buzz(warn ? [60,40,60] : 40);
-  toast(warn ? `Saved · ${r.result.checks.join(", ")} — tap the thumbnail to retake` : (r.replaced ? "Retaken " : "Saved ") + r.name);
+  toast((r.replaced ? "Retaken " : "Saved ") + r.name);
   S.lastOnDisk[r.variant] = Math.max(S.lastOnDisk[r.variant]||0, r.vehicle);
   loadProgress();
   const nxt=nextPending();
@@ -1147,6 +1188,144 @@ window.onPhoto = function(raw){
   const go = nxt || {cp:{id:r.checkpoint}};
   document.getElementById("cp-"+go.cp.id)?.scrollIntoView({block:"center"});
 };
+// ---------- built-in camera (needs https; falls back to the phone's camera app on plain http) ----------
+const CAM = {stream:null, track:null, ic:null, ctx:null, blob:null, url:null, pending:0, busy:false};
+const $c = id => document.getElementById(id);
+function camSupported(){ return !!(window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia); }
+
+function startCapture(section, cid, replace){
+  if(!camSupported()){
+    S.busy={section, cp:cid}; S.section=section; render();
+    Native.takePhoto(S.variant, section, cid, S.vehicle, replace||"");
+    return;
+  }
+  camOpen(section, cid, replace||"");
+}
+
+async function camOpen(section, cid, replace){
+  CAM.ctx={section, cp:cid, replace};
+  S.section=section;
+  $c("cam").hidden=false; camLive(); camLabel();
+  if(CAM.stream) return;
+  $c("camMsg").hidden=false; $c("camMsg").textContent="Starting camera…";
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({audio:false, video:{facingMode:{ideal:"environment"}, width:{ideal:4096}, height:{ideal:3072}}});
+    CAM.stream=stream; CAM.track=stream.getVideoTracks()[0];
+    $c("camVideo").srcObject=stream;
+    try{ await CAM.track.applyConstraints({advanced:[{torch:false}]}); }catch(e){}
+    try{ await CAM.track.applyConstraints({advanced:[{focusMode:"continuous"}]}); }catch(e){}
+    CAM.ic = ("ImageCapture" in window) ? new ImageCapture(CAM.track) : null;
+    $c("camMsg").hidden=true;
+  }catch(e){
+    $c("camMsg").textContent = "Camera not available: allow camera access for this site (lock icon in the address bar), then try again.";
+  }
+}
+
+function camClose(){
+  $c("cam").hidden=true;
+  if(CAM.url){ URL.revokeObjectURL(CAM.url); CAM.url=null; } CAM.blob=null;
+  if(CAM.stream){ CAM.stream.getTracks().forEach(t=>t.stop()); CAM.stream=null; CAM.track=null; CAM.ic=null; }
+  S.busy=null;
+  try{ loadProgress(); }catch(e){}
+  render();
+  const nxt=nextPending(); if(nxt) document.getElementById("cp-"+nxt.cp.id)?.scrollIntoView({block:"center"});
+}
+
+function camLabel(){
+  const v=V(), list=v[CAM.ctx.section], i=list.findIndex(c=>c.id===CAM.ctx.cp), cp=list[i]||{name:CAM.ctx.cp};
+  $c("camName").textContent=cp.name;
+  $c("camSub").textContent=`${CAM.ctx.section==="interior"?"Interior":"Exterior"} · ${i+1} of ${list.length} · V${pad3(S.vehicle)}${CAM.ctx.replace?" · retake":""}`;
+  const nx=nextInSection(CAM.ctx.section, CAM.ctx.cp);
+  $c("camNextLbl").textContent = nx ? "Next" : "Done";
+  $c("camNextName").textContent = nx ? nx.name : (CAM.ctx.section==="interior" ? "Interior done" : "Exterior done");
+  $c("camNext").querySelector(".c").innerHTML = ic(nx ? "next" : "check");
+}
+function camQueue(){ const q=$c("camQ"); q.hidden=!CAM.pending; q.textContent=`Saving ${CAM.pending}`; }
+function camLive(){
+  $c("camShot").hidden=true; $c("camVideo").hidden=false;
+  $c("camLive").hidden=false; $c("camReview").hidden=true; $c("camShutter").disabled=false;
+}
+
+async function camShoot(){
+  if(!CAM.track || CAM.busy) return;
+  CAM.busy=true; $c("camShutter").disabled=true;
+  let blob=null;
+  try{
+    if(CAM.ic && CAM.ic.takePhoto){
+      let opts={fillLightMode:"off"};
+      try{ const caps=await CAM.ic.getPhotoCapabilities(); if(caps.imageWidth && caps.imageWidth.max) opts={...opts, imageWidth:caps.imageWidth.max, imageHeight:caps.imageHeight.max}; }catch(e){}
+      try{ blob=await CAM.ic.takePhoto(opts); }catch(e){ blob=await CAM.ic.takePhoto(); }
+    }
+  }catch(e){ blob=null; }
+  if(!blob){   // fallback: grab the video frame at the stream's resolution
+    const v=$c("camVideo"), cv=document.createElement("canvas");
+    cv.width=v.videoWidth; cv.height=v.videoHeight; cv.getContext("2d").drawImage(v,0,0);
+    blob=await new Promise(r=>cv.toBlob(r,"image/jpeg",0.95));
+  }
+  blob = await camUpright(blob);
+  CAM.blob=blob; CAM.url=URL.createObjectURL(blob);
+  $c("camShot").src=CAM.url; $c("camShot").hidden=false; $c("camVideo").hidden=true;
+  $c("camLive").hidden=true; $c("camReview").hidden=false;
+  CAM.busy=false;
+  buzz(30);
+}
+
+// If the photo came out sideways compared to how the Zebra is held, turn it upright (only then is it re-encoded).
+async function camUpright(blob){
+  try{
+    const v=$c("camVideo"), portrait=v.videoHeight>v.videoWidth;
+    const bmp=await createImageBitmap(blob);
+    const landscape=bmp.width>bmp.height;
+    if(portrait===!landscape || v.videoHeight===v.videoWidth){ bmp.close && bmp.close(); return blob; }
+    const cv=document.createElement("canvas"); cv.width=bmp.height; cv.height=bmp.width;
+    const g=cv.getContext("2d"); g.translate(cv.width/2, cv.height/2); g.rotate((portrait?90:-90)*Math.PI/180); g.drawImage(bmp, -bmp.width/2, -bmp.height/2);
+    bmp.close && bmp.close();
+    return await new Promise(r=>cv.toBlob(r, blob.type==="image/png"?"image/png":"image/jpeg", 0.95)) || blob;
+  }catch(e){ return blob; }
+}
+
+function camUpload(blob, ctx){
+  const ext = blob.type==="image/png" ? "png" : "jpg";
+  const fd=new FormData();
+  fd.append("variant", S.variant); fd.append("section", ctx.section); fd.append("checkpoint", ctx.cp);
+  fd.append("vehicle", S.vehicle); fd.append("replace", ctx.replace||""); fd.append("device", "");
+  fd.append("file", blob, "photo."+ext);
+  CAM.pending++; camQueue();
+  const x=new XMLHttpRequest(); x.open("POST","/api/upload");
+  x.onload=()=>{ CAM.pending--; camQueue(); let r; try{ r=JSON.parse(x.responseText); }catch(e){ r={error:"Hub error "+x.status}; }
+    if(r.error){ toast("Not saved: "+r.error); buzz([80,50,80]); } else { S.lastOnDisk[S.variant]=Math.max(S.lastOnDisk[S.variant]||0, S.vehicle); if($c("cam").hidden){ try{ loadProgress(); render(); }catch(e){} } } };
+  x.onerror=()=>{ CAM.pending--; camQueue(); toast("Photo not sent: is the Zebra still on the hotspot?"); buzz([80,50,80]); };
+  x.send(fd);
+}
+
+function camAccept(){
+  if(!CAM.blob) return null;
+  const ctx={...CAM.ctx}; camUpload(CAM.blob, ctx);
+  URL.revokeObjectURL(CAM.url); CAM.url=null; CAM.blob=null;
+  return ctx;
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  $c("camClose").innerHTML=ic("x"); $c("camRetake").querySelector(".c").innerHTML=ic("retake"); $c("camOk").querySelector(".c").innerHTML=ic("check");
+  $c("camClose").onclick=()=>{ if(CAM.blob && !confirmLeave()) return; camClose(); };
+  $c("camShutter").onclick=camShoot;
+  $c("camRetake").onclick=()=>{ if(CAM.url) URL.revokeObjectURL(CAM.url); CAM.url=null; CAM.blob=null; camLive(); };
+  $c("camOk").onclick=()=>{ camAccept(); camClose(); };
+  $c("camNext").onclick=()=>{
+    const ctx=camAccept(); if(!ctx) return;
+    const nx=nextInSection(ctx.section, ctx.cp);
+    if(nx){ CAM.ctx={section:ctx.section, cp:nx.id, replace:""}; camLabel(); camLive(); }
+    else {
+      camClose();
+      toast(ctx.section==="interior" ? "Interior done" : "Exterior done");
+      const other = ctx.section==="interior" ? "exterior" : "interior";
+      if(V()[other].some(c=>!((S.progress[other]||{})[c.id]||[]).length)){ S.section=other; render(); }
+    }
+  };
+  document.addEventListener("keydown", e => { if(!$c("cam").hidden && (e.key==="AudioVolumeUp"||e.key==="AudioVolumeDown"||e.key===" ") && !$c("camLive").hidden){ e.preventDefault(); camShoot(); } });
+});
+function confirmLeave(){ return true; }   // an unsaved shot is simply discarded when closing
+
 function closeReview(){
   if(S.review && S.review.url) try{ URL.revokeObjectURL(S.review.url); }catch(e){}
   S.review=null;
@@ -1256,8 +1435,7 @@ $app.addEventListener("click", e => {
     else if(a==="tab"){ S.section=b.dataset.s; render(); }
     else if(a==="shoot"){
       if(e.target.closest('[data-act="view"]')) return;
-      S.busy={section:b.dataset.s, cp:b.dataset.c}; S.section=b.dataset.s; render();
-      Native.takePhoto(S.variant, b.dataset.s, b.dataset.c, S.vehicle, "");
+      startCapture(b.dataset.s, b.dataset.c, "");
     }
     else if(a==="view"){
       const list = S.progress[b.dataset.s][b.dataset.c], i = +b.dataset.i, ph = list[i];
@@ -1266,9 +1444,8 @@ $app.addEventListener("click", e => {
     }
     else if(a==="closeViewer"){ S.viewer=null; render(); }
     else if(a==="retake"){
-      const ph=S.viewer; S.viewer=null; S.confirm=null;
-      S.busy={section:ph.section, cp:ph.cp}; S.section=ph.section; render();
-      Native.takePhoto(S.variant, ph.section, ph.cp, S.vehicle, ph.path);
+      const ph=S.viewer; S.viewer=null; S.confirm=null; render();
+      startCapture(ph.section, ph.cp, ph.path);
     }
     else if(a==="askDelPhoto"){ S.confirm="photo"; render(); }
     else if(a==="delPhoto"){

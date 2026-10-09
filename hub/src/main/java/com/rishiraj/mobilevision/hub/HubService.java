@@ -18,7 +18,7 @@ import fi.iki.elonen.NanoHTTPD;
 public class HubService extends Service {
     static final String CHANNEL = "hub";
     static volatile boolean running = false;
-    HubServer server;
+    HubServer server, secureServer;
     PowerManager.WakeLock wake;
     WifiManager.WifiLock wifi;
 
@@ -49,11 +49,23 @@ public class HubService extends Service {
             wifi.acquire();
         }
         try {
-            server = new HubServer(this, Store.get(this));
+            server = new HubServer(this, Store.get(this), HubServer.PORT, false);
             server.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
             running = true;
         } catch (Exception e) {
             running = false;
+        }
+        try {
+            char[] pass = "mobilevision".toCharArray();
+            java.security.KeyStore ks = java.security.KeyStore.getInstance("PKCS12");
+            try (java.io.InputStream in = getAssets().open("hub.p12")) { ks.load(in, pass); }
+            javax.net.ssl.KeyManagerFactory kmf = javax.net.ssl.KeyManagerFactory.getInstance(javax.net.ssl.KeyManagerFactory.getDefaultAlgorithm());
+            kmf.init(ks, pass);
+            secureServer = new HubServer(this, Store.get(this), HubServer.HTTPS_PORT, true);
+            secureServer.makeSecure(NanoHTTPD.makeSSLSocketFactory(ks, kmf), null);
+            secureServer.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
+        } catch (Exception e) {
+            secureServer = null;
         }
     }
 
@@ -64,6 +76,7 @@ public class HubService extends Service {
     public void onDestroy() {
         running = false;
         if (server != null) server.stop();
+        if (secureServer != null) secureServer.stop();
         if (wake != null && wake.isHeld()) wake.release();
         if (wifi != null && wifi.isHeld()) wifi.release();
         super.onDestroy();

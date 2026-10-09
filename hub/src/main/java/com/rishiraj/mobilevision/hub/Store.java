@@ -48,7 +48,7 @@ public class Store {
     public static final String VERSION = "2.1 hub";
     static final String[] SECTIONS = {"interior", "exterior"};
     static final Pattern VEH_RE = Pattern.compile("_V(\\d{3,})_(\\d{2,})\\.[A-Za-z]+$");
-    static final Pattern STAMP_RE = Pattern.compile("^(.+)_(\\d{8}_\\d{6}(?:_\\d+)?)\\.jpg$");
+    static final Pattern STAMP_RE = Pattern.compile("^(.+)_(\\d{8}_\\d{6}(?:_\\d+)?)\\.(jpg|jpeg|png)$", Pattern.CASE_INSENSITIVE);
     static final Pattern VAR_ID = Pattern.compile("^[A-Za-z0-9_]+$");
     static final Pattern ITEM_ID = Pattern.compile("^[a-z0-9_]+$");
     static final int SLIM_SIDE = 1280;
@@ -564,16 +564,17 @@ public class Store {
             List<File> ps = walkPhotos(underRoot(v));
             Collections.sort(ps, (a, b) -> Long.compare(a.lastModified(), b.lastModified()));
             Set<String> used = new HashSet<>();
-            StringBuilder csv = new StringBuilder("file,vehicle,color,section,checkpoint,time,quality,checks\n");
+            StringBuilder csv = new StringBuilder("file,vehicle,color,section,checkpoint,time\n");
             for (File p : ps) {
                 File cdir = p.getParentFile(), sdir = cdir.getParentFile(), coldir = sdir.getParentFile();
                 String sec = sdir.getName(), color = coldir.getName(), cid = cidFromFolder(cdir.getName(), v);
                 Matcher m = STAMP_RE.matcher(p.getName());
                 // yyyyMMdd_HHmmss from the stored name (drop a same-second "_2" suffix), else the file time
                 String stamp = m.matches() ? m.group(2).substring(0, 15) : stampFmt.format(new Date(p.lastModified()));
-                String base = v + "_" + color + "_" + stamp + "_" + sec + "_" + cid, name = base + ".jpg";
+                String pn = p.getName(), ext = pn.substring(pn.lastIndexOf('.') + 1).toLowerCase(Locale.US);
+                String base = v + "_" + color + "_" + stamp + "_" + sec + "_" + cid, name = base + "." + ext;
                 int k = 2;
-                while (!used.add(name)) name = base + "_" + (k++) + ".jpg";
+                while (!used.add(name)) name = base + "_" + (k++) + "." + ext;
                 ZipEntry e = new ZipEntry(v + "/" + name);
                 e.setTime(p.lastModified());
                 z.putNextEntry(e);
@@ -590,8 +591,7 @@ public class Store {
                 int veh = vehicleOf(p);
                 csv.append(name).append(',').append(veh > 0 ? String.format(Locale.US, "V%03d", veh) : "").append(',')
                    .append(color.replace('_', ' ')).append(',').append(sec).append(',').append(cid).append(',')
-                   .append(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(new Date(p.lastModified()))).append(',')
-                   .append(r == null ? "" : r.optString("status")).append(',').append(checks.replace(",", " ")).append('\n');
+                   .append(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(new Date(p.lastModified()))).append('\n');
             }
             if (!ps.isEmpty()) {
                 z.putNextEntry(new ZipEntry(v + "/photos.csv"));
@@ -662,7 +662,7 @@ public class Store {
                 String name = p.getName();
                 Matcher m = STAMP_RE.matcher(name);
                 if (m.matches() && name.startsWith(vid + "_" + cid + "_"))
-                    name = vid + "_" + cid + "_" + colorPart(color) + "_" + m.group(2) + ".jpg";
+                    name = vid + "_" + cid + "_" + colorPart(color) + "_" + m.group(2) + "." + m.group(3).toLowerCase(Locale.US);
                 if (movePhoto(p, new File(cpFolder(vid, color, sec, cid), name), vehicle)) {
                     n++;
                     pruneEmpty(cdir, vdir);
@@ -735,7 +735,13 @@ public class Store {
     }
 
     /** Saves an uploaded photo. replaceRel set = retake (the old photo is removed). */
-    public JSONObject upload(String vid, String sec, String cid, int vehicle, String replaceRel, String device, File tmp) throws Exception {
+    public JSONObject upload(String vid, String sec, String cid, int vehicle, String replaceRel, String device, File tmp, String origName) throws Exception {
+        String ext = "jpg";
+        if (origName != null) {
+            String n = origName.toLowerCase(Locale.US);
+            if (n.endsWith(".png")) ext = "png";
+            else if (n.endsWith(".jpeg")) ext = "jpeg";
+        }
         JSONObject v = findVariant(loadConfig(), vid);
         findCheckpoint(v, sec, cid);
         if (tmp == null || !tmp.exists() || tmp.length() == 0) throw new UserError("The photo was empty. Take it again.");
@@ -750,9 +756,9 @@ public class Store {
             }
             String stamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
             String base = vid + "_" + cid + "_" + colorPart(color) + "_" + stamp;
-            target = new File(folder, base + ".jpg");
+            target = new File(folder, base + "." + ext);
             int k = 2;
-            while (target.exists()) target = new File(folder, base + "_" + (k++) + ".jpg");
+            while (target.exists()) target = new File(folder, base + "_" + (k++) + "." + ext);
             File part = new File(folder, target.getName() + ".part");
             try (InputStream in = new FileInputStream(tmp); OutputStream out = new FileOutputStream(part)) { copy(in, out); }
             if (!part.renameTo(target)) throw new IOException("could not finish writing the file");
@@ -771,8 +777,6 @@ public class Store {
             saveIndexes();
         }
         String rel = relOf(target);
-        JSONObject q = quality(target);
-        if (q.length() > 0) synchronized (lock) { results.put(rel, q); writeJson(f("results.json"), results); }
         appendLog(now(), vid, String.format(Locale.US, "V%03d", vehicle), sec, cid, rel, old != null ? "retaken" : "saved", device);
         JSONObject o = photoJson(target);
         o.put("ok", true); o.put("replaced", old != null); o.put("variant", vid); o.put("section", sec);

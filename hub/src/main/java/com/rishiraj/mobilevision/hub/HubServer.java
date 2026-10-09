@@ -31,14 +31,22 @@ import fi.iki.elonen.NanoHTTPD;
 
 /** Serves the capture web app to the Zebra, the API it uses, and the sync API for the laptop. */
 public class HubServer extends NanoHTTPD {
-    public static final int PORT = 8000;
+    public static final int PORT = 8000;        // http: hub status page; forwards browsers to https
+    public static final int HTTPS_PORT = 8443;  // https: needed so the browser may use the camera
     final Context ctx;
     final Store store;
+    final boolean secure;
 
-    public HubServer(Context c, Store s) {
-        super(PORT);
+    public HubServer(Context c, Store s, int port, boolean secure) {
+        super(port);
         ctx = c.getApplicationContext();
         store = s;
+        this.secure = secure;
+    }
+
+    static boolean isLocal(IHTTPSession s) {
+        String ip = s.getRemoteIpAddress();
+        return ip == null || ip.startsWith("127.") || ip.equals("::1") || ip.equals("0:0:0:0:0:0:0:1");
     }
 
     static Response json(Object o) {
@@ -67,6 +75,16 @@ public class HubServer extends NanoHTTPD {
     public Response serve(IHTTPSession session) {
         String uri = session.getUri();
         Method m = session.getMethod();
+        // Other devices opening http://<phone>:8000 are sent to the secure address (camera needs https).
+        if (!secure && !isLocal(session) && (uri.equals("/") || uri.equals("/index.html"))) {
+            String host = session.getHeaders().get("host");
+            if (host == null) host = "";
+            host = host.replaceAll(":\\d+$", "");
+            Response r = newFixedLengthResponse(Response.Status.REDIRECT, "text/html",
+                    "<a href=\"https://" + host + ":" + HTTPS_PORT + "/\">Continue</a>");
+            r.addHeader("Location", "https://" + host + ":" + HTTPS_PORT + "/");
+            return r;
+        }
         try {
             if (uri.startsWith("/api/rpc/") && m == Method.POST) return rpc(uri.substring(9), body(session));
             if (uri.equals("/api/upload") && m == Method.POST) return upload(session);
@@ -117,7 +135,7 @@ public class HubServer extends NanoHTTPD {
         String tmp = files.get("file");
         JSONObject r = store.upload(param(s, "variant", ""), param(s, "section", ""), param(s, "checkpoint", ""),
                 Integer.parseInt(param(s, "vehicle", "0")), param(s, "replace", ""), param(s, "device", ""),
-                tmp == null ? null : new File(tmp));
+                tmp == null ? null : new File(tmp), param(s, "file", "photo.jpg"));
         return json(r);
     }
 
@@ -264,7 +282,8 @@ public class HubServer extends NanoHTTPD {
             String url = "http://" + a[1] + ":" + PORT;
             addr.append("<div class=\"addr").append(first ? " main" : "").append("\">")
                 .append(first ? qrSvg(url) : "")
-                .append("<b>").append(url).append("</b><span>").append(label(a[0])).append("</span></div>");
+                .append("<b>").append(url).append("</b><span>").append(label(a[0]))
+                .append(first ? " · opens https://" + a[1] + ":" + HTTPS_PORT : "").append("</span></div>");
             first = false;
         }
         if (addr.length() == 0)
@@ -290,7 +309,7 @@ public class HubServer extends NanoHTTPD {
             + "<div class=\"row\"><span>Free space</span><b id=\"free\">…</b></div></div>"
             + "<div class=\"btns\"><a class=\"btn pri\" href=\"/\">Open capture screen here</a><a class=\"btn soft\" href=\"/hub\">Refresh</a></div>"
             + "<div class=\"card\" style=\"margin-top:12px\"><b>Setup</b><ol class=\"m\"><li>Turn on this phone's <b>Hotspot</b> (mobile data can stay off).</li>"
-            + "<li>Connect the <b>Zebra</b> and the <b>laptop</b> to the hotspot.</li><li>On the Zebra and the laptop, open the address above in the browser. Choose <b>Zebra</b> to capture, <b>Laptop</b> to download photos.</li>"
+            + "<li>Connect the <b>Zebra</b> and the <b>laptop</b> to the hotspot.</li><li>On the Zebra and the laptop, open the address above in the browser. The first time, the browser warns the connection is not private: tap <b>Advanced → Proceed</b>. On the Zebra, allow the <b>camera</b>.</li><li>Choose <b>Zebra</b> to capture, <b>Laptop</b> to download photos.</li>"
             + "<li>Allow this app to run in the background: Settings → Apps → MobileVision Hub → Battery → Unrestricted.</li></ol></div>"
             + "<div class=\"btns\"><button class=\"btn soft\" onclick=\"fetch('/hub/stop').then(()=>document.body.innerHTML='<main><h1>Hub stopped</h1><p>Open the app again to restart.</p></main>')\">Stop hub</button></div>"
             + "</main><script>"
