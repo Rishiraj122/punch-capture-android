@@ -543,6 +543,137 @@ public class Store {
                 .put("recent", recent);
     }
 
+    // ------------------------------------------------------------ vehicles from the VIN scan
+    /** {variant: {n: {seq, vin, color, at, simulated}}} — seq like "1109" names the vehicle folder. */
+    public JSONObject vehicleInfo() { return readJson(f("vehicle_info.json")); }
+
+    String vehicleLabel(String vid, int n) {
+        JSONObject m = vehicleInfo().optJSONObject(vid);
+        JSONObject v = m == null ? null : m.optJSONObject(String.valueOf(n));
+        return v != null && v.optString("seq").length() > 0 ? v.optString("seq") : String.format(Locale.US, "V%03d", n);
+    }
+
+    /** Time-based sequence: HHmm, with _2, _3… if that minute is already used. */
+    String newSeq() {
+        Set<String> used = new HashSet<>();
+        JSONObject all = vehicleInfo();
+        for (Iterator<String> it = all.keys(); it.hasNext(); ) {
+            JSONObject m = all.optJSONObject(it.next());
+            if (m == null) continue;
+            for (Iterator<String> k = m.keys(); k.hasNext(); ) {
+                JSONObject v = m.optJSONObject(k.next());
+                if (v != null) used.add(v.optString("seq"));
+            }
+        }
+        String base = new SimpleDateFormat("HHmm", Locale.US).format(new Date()), seq = base;
+        int k = 2;
+        while (used.contains(seq)) seq = base + "_" + (k++);
+        return seq;
+    }
+
+    String randomVin() {
+        String chars = "ABCDEFGHJKLMNPRSTUVWXYZ0123456789";   // VINs never use I, O, Q
+        StringBuilder sb = new StringBuilder("MAT");             // Tata Motors WMI
+        for (int i = 0; i < 14; i++) sb.append(chars.charAt(rnd.nextInt(chars.length())));
+        return sb.toString();
+    }
+
+    /**
+     * VIN scan. For now OCR is simulated: picks a random variant and color, makes a VIN and a time-based sequence.
+     * Later: read the VIN from the photo (e.g. ML Kit text recognition) and look the variant/color up from it.
+     */
+    public JSONObject ocrVin(File tmp, String origName, String device) throws Exception {
+        long t0 = System.currentTimeMillis();
+        JSONObject cfg = loadConfig(), simCfg = sim();
+        JSONArray vars = cfg.getJSONArray("variants"), colors = cfg.optJSONArray("colors");
+        if (vars.length() == 0) throw new UserError("No variants set up yet. Add them in Settings.");
+        int delay = simCfg.optInt("ocrDelayMs", 800);
+        if (delay > 0) Thread.sleep(delay);
+        JSONObject v = vars.getJSONObject(rnd.nextInt(vars.length()));
+        String vid = v.getString("id");
+        String color = colors != null && colors.length() > 0 ? colors.getJSONObject(rnd.nextInt(colors.length())).getString("name") : "";
+        String vin = randomVin(), seq;
+        int n;
+        String rel = null;
+        synchronized (lock) {
+            Integer r = reserved.get(vid);
+            n = Math.max(maxVehicle(vid), r == null ? 0 : r) + 1;
+            reserved.put(vid, n);
+            saveVehicleColor(vid, n, color);
+            seq = newSeq();
+            JSONObject all = vehicleInfo();
+            JSONObject m = all.optJSONObject(vid);
+            if (m == null) { m = new JSONObject(); all.put(vid, m); }
+            m.put(String.valueOf(n), new JSONObject().put("seq", seq).put("vin", vin).put("color", color)
+                    .put("at", System.currentTimeMillis()).put("simulated", true));
+            writeJson(f("vehicle_info.json"), all);
+            if (tmp != null && tmp.exists() && tmp.length() > 0) {    // keep the VIN photo with the vehicle (useful to train OCR later)
+                String ext = origName != null && origName.toLowerCase(Locale.US).endsWith(".png") ? "png" : "jpg";
+                File folder = cpFolder(vid, color, "vin", "vin");
+                folder.mkdirs();
+                File target = new File(folder, vid + "_vin_" + colorPart(color) + "_" +
+                        new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date()) + "." + ext);
+                try (InputStream in = new FileInputStream(tmp); OutputStream out = new FileOutputStream(target)) { copy(in, out); }
+                rel = relOf(target);
+                index.put(rel, n);
+                saveIndexes();
+            }
+        }
+        appendLog(now(), vid, seq, "vin", "vin", rel == null ? "" : rel, "vin scanned (simulated)", device);
+        return new JSONObject().put("variant", vid).put("variantName", v.getString("name")).put("vehicle", n)
+                .put("seq", seq).put("vin", vin).put("color", color).put("simulated", true)
+                .put("ms", System.currentTimeMillis() - t0);
+    }
+
+    static void deleteTree(File d) {
+        File[] list = d.listFiles();
+        if (list != null) for (File f : list) { if (f.isDirectory()) deleteTree(f); else f.delete(); }
+        d.delete();
+    }
+
+    /** scope: "all", "<variant>" or "<variant>/<vehicle n>". Settings (checkpoints, colors, simulation) are kept. */
+    public JSONObject clearPhotos(String scope) throws Exception {
+        int removed = 0;
+        synchronized (lock) {
+            String vid = null;
+            int veh = 0;
+            if (!"all".equals(scope)) {
+                String[] parts = scope.split("/");
+                vid = parts[0];
+                if (parts.length > 1) veh = Integer.parseInt(parts[1]);
+                underRoot(vid);
+            }
+            List<File> targets = new ArrayList<>();
+            if (vid == null) targets.addAll(walkPhotos(root));
+            else for (File p : walkPhotos(new File(root, vid))) if (veh == 0 || vehicleOf(p) == veh) targets.add(p);
+            for (File p : targets) {
+                String rel = relOf(p);
+                if (p.delete()) {
+                    removed++;
+                    index.remove(rel); results.remove(rel); synced.remove(rel);
+                }
+            }
+            // drop empty folders under the variant folders
+            File[] vdirs = root.listFiles();
+            if (vdirs != null) for (File d : vdirs) if (d.isDirectory() && walkPhotos(d).isEmpty()) deleteTree(d);
+            JSONObject vehs = vehicles(), info = vehicleInfo();
+            if (vid == null) { vehs = new JSONObject(); info = new JSONObject(); reserved.clear(); }
+            else if (veh == 0) { vehs.remove(vid); info.remove(vid); reserved.remove(vid); }
+            else {
+                JSONObject a = vehs.optJSONObject(vid), b = info.optJSONObject(vid);
+                if (a != null) a.remove(String.valueOf(veh));
+                if (b != null) b.remove(String.valueOf(veh));
+            }
+            writeJson(f("vehicles.json"), vehs);
+            writeJson(f("vehicle_info.json"), info);
+            saveIndexes();
+            deleteTree(cache);
+            cache.mkdirs();
+        }
+        appendLog(now(), "", "", "", "", scope, "cleared " + removed + " photos", "laptop");
+        return new JSONObject().put("ok", true).put("removed", removed);
+    }
+
     // ------------------------------------------------------------ laptop view: variants and downloads
     public JSONObject variants() throws Exception {
         JSONObject cfg = loadConfig(), veh = vehicles();
@@ -574,9 +705,25 @@ public class Store {
             List<String> cs = new ArrayList<>(colors);
             Collections.sort(cs);
             for (String c : cs) cl.put(c);
+            Map<Integer, long[]> per = new HashMap<>();          // n -> {photos, bytes, latest}
+            for (File p : ps) {
+                long[] a = per.get(vehicleOf(p));
+                if (a == null) { a = new long[3]; per.put(vehicleOf(p), a); }
+                a[0]++; a[1] += p.length(); a[2] = Math.max(a[2], p.lastModified());
+            }
+            List<Integer> ns = new ArrayList<>(per.keySet());
+            Collections.sort(ns, (x, y) -> Long.compare(per.get(y)[2], per.get(x)[2]));
+            JSONObject infoV = vehicleInfo().optJSONObject(id);
+            JSONArray vl = new JSONArray();
+            for (int n : ns) {
+                JSONObject inf = infoV == null ? null : infoV.optJSONObject(String.valueOf(n));
+                vl.put(new JSONObject().put("n", n).put("label", vehicleLabel(id, n)).put("folder", vehicleLabel(id, n) + "_" + id)
+                        .put("vin", inf == null ? "" : inf.optString("vin")).put("color", vehicleColor(id, n))
+                        .put("photos", per.get(n)[0]).put("bytes", per.get(n)[1]).put("latest", per.get(n)[2]));
+            }
             out.put(new JSONObject().put("id", id).put("name", names.containsKey(id) ? names.get(id) : id)
                     .put("photos", ps.size()).put("bytes", bytes).put("vehicles", vs.size())
-                    .put("colors", cl).put("latest", latest));
+                    .put("colors", cl).put("latest", latest).put("vehicleList", vl));
             totalBytes += bytes;
             totalPhotos += ps.size();
         }
@@ -603,12 +750,13 @@ public class Store {
     }
 
     /**
-     * Streams a zip with one flat folder per variant:
-     *   Punch_Pure/Punch_Pure_Calypso_Red_20261009_101512_exterior_orvm_left.jpg
-     *   Punch_Pure/photos.csv   (file, vehicle, color, section, checkpoint, time, quality)
-     * vid null = every variant.
+     * Streams a zip with one folder per vehicle, named <sequence>_<Variant> (e.g. 1109_Punch_Smart):
+     *   1109_Punch_Smart/Punch_Smart_Calypso_Red_20261009_110912_exterior_orvm_left.jpg
+     *   1109_Punch_Smart/Punch_Smart_Calypso_Red_20261009_110901_vin.jpg
+     *   photos.csv  (folder, file, VIN, color, section, checkpoint, time, result)
+     * vid null = all variants; veh > 0 = only that vehicle.
      */
-    public void writeZip(String vid, OutputStream os) throws IOException {
+    public void writeZip(String vid, int veh, OutputStream os) throws IOException {
         List<String> vids = new ArrayList<>();
         if (vid != null) vids.add(vid);
         else {
@@ -619,44 +767,45 @@ public class Store {
         ZipOutputStream z = new ZipOutputStream(os);
         z.setLevel(java.util.zip.Deflater.NO_COMPRESSION);   // photos are already compressed
         SimpleDateFormat stampFmt = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US);
+        SimpleDateFormat timeFmt = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US);
+        JSONObject info = vehicleInfo();
+        StringBuilder csv = new StringBuilder("folder,file,vin,color,section,checkpoint,time,result\n");
+        Set<String> used = new HashSet<>();
         for (String v : vids) {
             List<File> ps = walkPhotos(underRoot(v));
             Collections.sort(ps, (a, b) -> Long.compare(a.lastModified(), b.lastModified()));
-            Set<String> used = new HashSet<>();
-            StringBuilder csv = new StringBuilder("file,vehicle,color,section,checkpoint,time\n");
+            JSONObject infoV = info.optJSONObject(v);
             for (File p : ps) {
+                int n = vehicleOf(p);
+                if (veh > 0 && n != veh) continue;
                 File cdir = p.getParentFile(), sdir = cdir.getParentFile(), coldir = sdir.getParentFile();
                 String sec = sdir.getName(), color = coldir.getName(), cid = cidFromFolder(cdir.getName(), v);
                 Matcher m = STAMP_RE.matcher(p.getName());
-                // yyyyMMdd_HHmmss from the stored name (drop a same-second "_2" suffix), else the file time
                 String stamp = m.matches() ? m.group(2).substring(0, 15) : stampFmt.format(new Date(p.lastModified()));
                 String pn = p.getName(), ext = pn.substring(pn.lastIndexOf('.') + 1).toLowerCase(Locale.US);
-                String base = v + "_" + color + "_" + stamp + "_" + sec + "_" + cid, name = base + "." + ext;
+                String folder = vehicleLabel(v, n) + "_" + v;
+                String base = "vin".equals(sec) ? v + "_" + color + "_" + stamp + "_vin"
+                                                : v + "_" + color + "_" + stamp + "_" + sec + "_" + cid;
+                String name = base + "." + ext;
                 int k = 2;
-                while (!used.add(name)) name = base + "_" + (k++) + "." + ext;
-                ZipEntry e = new ZipEntry(v + "/" + name);
+                while (!used.add(folder + "/" + name)) name = base + "_" + (k++) + "." + ext;
+                ZipEntry e = new ZipEntry(folder + "/" + name);
                 e.setTime(p.lastModified());
                 z.putNextEntry(e);
                 try (InputStream in = new FileInputStream(p)) { copy(in, z); }
                 z.closeEntry();
+                JSONObject inf = infoV == null ? null : infoV.optJSONObject(String.valueOf(n));
                 JSONObject r = results.optJSONObject(relOf(p));
-                String checks = "";
-                if (r != null && r.optJSONArray("checks") != null) {
-                    JSONArray c = r.optJSONArray("checks");
-                    StringBuilder sb = new StringBuilder();
-                    for (int i = 0; i < c.length(); i++) { if (i > 0) sb.append("; "); sb.append(c.optString(i)); }
-                    checks = sb.toString();
-                }
-                int veh = vehicleOf(p);
-                csv.append(name).append(',').append(veh > 0 ? String.format(Locale.US, "V%03d", veh) : "").append(',')
-                   .append(color.replace('_', ' ')).append(',').append(sec).append(',').append(cid).append(',')
-                   .append(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(new Date(p.lastModified()))).append('\n');
+                csv.append(folder).append(',').append(name).append(',').append(inf == null ? "" : inf.optString("vin")).append(',')
+                   .append(color.replace('_', ' ')).append(',').append(sec).append(',').append("vin".equals(sec) ? "" : cid).append(',')
+                   .append(timeFmt.format(new Date(p.lastModified()))).append(',')
+                   .append(r == null ? "" : r.optString("verdict")).append('\n');
             }
-            if (!ps.isEmpty()) {
-                z.putNextEntry(new ZipEntry(v + "/photos.csv"));
-                z.write(csv.toString().getBytes(StandardCharsets.UTF_8));
-                z.closeEntry();
-            }
+        }
+        if (!used.isEmpty()) {
+            z.putNextEntry(new ZipEntry("photos.csv"));
+            z.write(csv.toString().getBytes(StandardCharsets.UTF_8));
+            z.closeEntry();
         }
         z.finish();
         z.flush();
@@ -703,6 +852,10 @@ public class Store {
             out.put(s, sec);
         }
         out.put("color", vehicleColor(vid, vehicle));
+        out.put("label", vehicleLabel(vid, vehicle));
+        JSONObject iv = vehicleInfo().optJSONObject(vid);
+        JSONObject inf = iv == null ? null : iv.optJSONObject(String.valueOf(vehicle));
+        out.put("vin", inf == null ? "" : inf.optString("vin"));
         return out;
     }
 
@@ -716,7 +869,7 @@ public class Store {
                 if (vehicleOf(p) != vehicle) continue;
                 File cdir = p.getParentFile();
                 String sec = cdir.getParentFile().getName();
-                if (!"interior".equals(sec) && !"exterior".equals(sec)) continue;
+                if (!"interior".equals(sec) && !"exterior".equals(sec) && !"vin".equals(sec)) continue;
                 String cid = cidFromFolder(cdir.getName(), vid);
                 String name = p.getName();
                 Matcher m = STAMP_RE.matcher(name);

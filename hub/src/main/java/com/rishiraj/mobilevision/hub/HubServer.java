@@ -75,23 +75,23 @@ public class HubServer extends NanoHTTPD {
     public Response serve(IHTTPSession session) {
         String uri = session.getUri();
         Method m = session.getMethod();
-        // Other devices opening http://<phone>:8000 are sent to the secure address (camera needs https).
-        if (!secure && !isLocal(session) && (uri.equals("/") || uri.equals("/index.html"))) {
-            String host = session.getHeaders().get("host");
-            if (host == null) host = "";
-            host = host.replaceAll(":\\d+$", "");
-            Response r = newFixedLengthResponse(Response.Status.REDIRECT, "text/html",
-                    "<a href=\"https://" + host + ":" + HTTPS_PORT + "/\">Continue</a>");
-            r.addHeader("Location", "https://" + host + ":" + HTTPS_PORT + "/");
-            return r;
-        }
         try {
             if (uri.startsWith("/api/rpc/") && m == Method.POST) return rpc(uri.substring(9), body(session));
             if (uri.equals("/api/upload") && m == Method.POST) return upload(session);
+            if (uri.equals("/api/vin") && m == Method.POST) {
+                Map<String, String> files = new HashMap<>();
+                session.parseBody(files);
+                String tmp = files.get("file");
+                return json(store.ocrVin(tmp == null ? null : new File(tmp), param(session, "file", "vin.jpg"), param(session, "device", "")));
+            }
             if (uri.startsWith("/thumb/")) return image(uri.substring(7), 240);
             if (uri.startsWith("/preview/")) return image(uri.substring(9), 1280);
             if (uri.startsWith("/sync/")) return sync(uri.substring(6), session);
-            if (uri.startsWith("/download/") && uri.endsWith(".zip")) return download(uri.substring(10, uri.length() - 4));
+            if (uri.startsWith("/download/vehicle/") && uri.endsWith(".zip")) {
+                String[] parts = uri.substring(18, uri.length() - 4).split("/");
+                return download(parts[0], Integer.parseInt(parts[1]));
+            }
+            if (uri.startsWith("/download/") && uri.endsWith(".zip")) return download(uri.substring(10, uri.length() - 4), 0);
             if (uri.equals("/hub") || uri.equals("/hub/")) return html(hubPage());
             if (uri.equals("/hub/stop")) {
                 new Handler(Looper.getMainLooper()).postDelayed(() -> ctx.stopService(new Intent(ctx, HubService.class)), 300);
@@ -123,6 +123,8 @@ public class HubServer extends NanoHTTPD {
             case "stats": return json(store.stats());
             case "syncStatus": return json(store.syncStatus());
             case "variants": return json(store.variants());
+            case "vehicleInfo": return json(store.vehicleInfo());
+            case "clearPhotos": return json(store.clearPhotos(a.getString(0)));
             case "getSim": return json(store.sim());
             case "putSim": return json(store.putSim(a.getString(0)));
             case "procStats": return json(store.procStats());
@@ -152,7 +154,7 @@ public class HubServer extends NanoHTTPD {
     }
 
     // ------------------------------------------------------------ laptop downloads (browser)
-    Response download(String name) throws Exception {
+    Response download(String name, final int veh) throws Exception {
         final String vid = "all".equals(name) ? null : name;
         if (vid != null) {
             File d = store.underRoot(vid);
@@ -161,10 +163,10 @@ public class HubServer extends NanoHTTPD {
         final java.io.PipedInputStream in = new java.io.PipedInputStream(256 * 1024);
         final java.io.PipedOutputStream out = new java.io.PipedOutputStream(in);
         new Thread(() -> {
-            try { store.writeZip(vid, out); } catch (Exception ignored) { }
+            try { store.writeZip(vid, veh, out); } catch (Exception ignored) { }
             finally { try { out.close(); } catch (IOException ignored) { } }
         }, "zip").start();
-        String file = (vid == null ? "PunchCapture_all" : vid) + "_" +
+        String file = (vid == null ? "PunchCapture_all" : veh > 0 ? store.vehicleLabel(vid, veh) + "_" + vid : vid) + "_" +
                 new java.text.SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(new java.util.Date()) + ".zip";
         Response r = newChunkedResponse(Response.Status.OK, "application/zip", in);
         r.addHeader("Content-Disposition", "attachment; filename=\"" + file + "\"");

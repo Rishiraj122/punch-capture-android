@@ -61,6 +61,23 @@ header.top h1{font-size:1.28rem;margin:0;flex:1;min-width:0;white-space:nowrap;o
 .label.blue{color:var(--primary)}
 .meta{font-size:.86rem;color:var(--muted)}
 .err{color:var(--bad);font-size:.9rem}
+.vinbtn{display:flex;align-items:center;gap:14px;width:100%;text-align:left;border:0;border-radius:18px;background:var(--primary);color:var(--primary-ink);
+  padding:16px;margin-bottom:14px;box-shadow:var(--shadow)}
+.vinbtn .ico{width:52px;height:52px;border-radius:14px;background:rgba(255,255,255,.18);display:grid;place-items:center;flex:0 0 auto}
+.vinbtn b{display:block;font-size:1.2rem}
+.vinbtn span span{font-size:.85rem;opacity:.9}
+.vinres{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.vinres .vin{font:800 1.25rem var(--f-num);letter-spacing:.06em}
+.vinres .row{display:flex;gap:16px;flex-wrap:wrap;font-size:.95rem;color:#c9d2de}
+.vinres .row b{color:#fff}
+.vin-btns{display:grid;grid-template-columns:auto 1fr 1fr;gap:10px}
+.vin-btns .btn{min-height:56px}
+.vlist2{list-style:none;margin:12px 0 0;padding:0;border-top:1px solid var(--line)}
+.vlist2 li{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.vlist2 .fold{font:700 .9rem var(--f-num);flex:1;min-width:150px}
+.vlist2 .fold span{display:block;font:500 .78rem var(--f-ui);color:var(--muted)}
+.vlist2 .btn{min-height:38px;padding:6px 12px;font-size:.88rem;text-decoration:none}
+.danger-soft{color:var(--bad);border-color:var(--line)}
 .fsbtn{position:fixed;right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);z-index:12;width:54px;height:54px;border-radius:16px;
   border:1px solid var(--line);background:var(--card);color:var(--fg);display:grid;place-items:center;box-shadow:0 4px 14px rgba(15,27,45,.18)}
 .fsbtn[hidden]{display:none}
@@ -359,6 +376,14 @@ select.compact{width:auto;min-height:40px;padding:8px 12px;border-radius:999px;f
     <div class="cam-msg" id="camMsg" hidden></div>
   </div>
   <div class="cam-bottom cam-live" id="camLive"><button class="shutter" id="camShutter" aria-label="Take photo"></button></div>
+  <div class="cam-bottom" id="camVinPanel" hidden>
+    <div class="vinres" id="camVinInfo"></div>
+    <div class="vin-btns">
+      <button class="btn ghost" id="camVinRetake" style="background:#1b2536;color:#fff;border-color:#334058"></button>
+      <button class="btn primary" id="camVinInt">Start Interior</button>
+      <button class="btn primary" id="camVinExt">Start Exterior</button>
+    </div>
+  </div>
   <div class="cam-bottom" id="camReview" hidden>
     <div class="rv-btns">
       <button class="rv-btn" id="camRetake"><span class="c"></span>Retake</button>
@@ -385,6 +410,8 @@ const ICONS = {
   chart:'<path d="M3 3v18h18M7 16v-4M12 16V8M17 16v-7"/>', lock:'<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   up:'<path d="M12 19V5M5 12l7-7 7 7"/>', down:'<path d="M12 5v14M19 12l-7 7-7-7"/>', next:'<path d="M5 12h14M13 5l7 7-7 7"/>',
   dots:'<circle cx="12" cy="5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="12" cy="19" r="1.2"/>',
+  scan:'<path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M10.5 8v8M14 8v8M17 8v8"/>',
+  trash:'<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>',
   expand:'<path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/>',
   shrink:'<path d="M3 8h5V3M21 8h-5V3M3 16h5v5M21 16h-5v5"/>',
   sim:'<path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/>',
@@ -505,7 +532,8 @@ function loadConfig(){
   const c = nat("getConfig");
   if(normalize(c)){ S.cfg=c; commit(c); } else S.cfg=c;
 }
-function loadLastVehicles(){ S.lastOnDisk = nat("lastVehicles"); }
+function loadLastVehicles(){ S.lastOnDisk = nat("lastVehicles"); try{ const vi=nat("vehicleInfo"); S.vinfo = vi && !vi.error ? vi : {}; }catch(e){ S.vinfo={}; } }
+function vl(vid, n){ const m=(S.vinfo||{})[vid], v=m && m[n]; return v && v.seq ? v.seq : "V"+pad3(n); }
 function loadProgress(){ S.progress = nat("progress", S.variant, S.vehicle); }
 function counts(section){
   const v=V(), p=S.progress||{}; let done=0;
@@ -627,11 +655,19 @@ function renderLaptop(){
           ${v.colors.length ? `<div class="chips">${v.colors.map(c=>`<span class="chip"><i class="swatch" style="width:10px;height:10px;background:${swatchColor(c)}"></i>${esc(c)}</span>`).join("")}</div>` : ""}
         </div></div>
       <div class="vacts">
-        ${v.photos ? `<a class="btn primary" href="/download/${encodeURIComponent(v.id)}.zip" download>${ic("down","sm")}Download folder</a>` : `<span class="btn soft" style="opacity:.6">No photos yet</span>`}
+        ${v.photos ? `<a class="btn primary" href="/download/${encodeURIComponent(v.id)}.zip" download>${ic("down","sm")}Download all ${esc(v.name)}</a>` : `<span class="btn soft" style="opacity:.6">No photos yet</span>`}
         ${v.photos ? `<button class="btn soft" data-act="lapToggle" data-id="${v.id}">${ic(open?"up":"image","sm")}${open?"Hide photos":"Show photos"}</button>` : ""}
+        ${v.photos ? `<button class="btn soft danger-soft" data-act="lapAskClear" data-scope="${esc(v.id)}">${ic("trash","sm")}Delete</button>` : ""}
       </div>
+      ${L.confirm===v.id ? clearConfirm(v.id, `Delete all ${v.photos} ${esc(v.name)} photos from the phone?`) : ""}
+      ${(v.vehicleList||[]).length ? `<ul class="vlist2">${v.vehicleList.slice(0, L.allVeh===v.id?999:6).map(x=>`<li>
+          <span class="fold">${esc(x.folder)}<span>${x.vin?esc(x.vin)+" · ":""}${x.color?esc(x.color)+" · ":""}${x.photos} photo${x.photos===1?"":"s"} · ${mb(x.bytes)}</span></span>
+          <a class="btn soft" href="/download/vehicle/${encodeURIComponent(v.id)}/${x.n}.zip" download>${ic("down","sm")}Download</a>
+          <button class="btn soft danger-soft" data-act="lapAskClear" data-scope="${esc(v.id)}/${x.n}" aria-label="Delete ${esc(x.folder)}">${ic("trash","sm")}</button>
+          ${L.confirm===v.id+"/"+x.n ? clearConfirm(v.id+"/"+x.n, `Delete ${esc(x.folder)} (${x.photos} photos) from the phone?`) : ""}</li>`).join("")}</ul>
+        ${v.vehicleList.length>6 && L.allVeh!==v.id ? `<button class="btn ghost block" style="margin-top:8px" data-act="lapAllVeh" data-id="${v.id}">Show all ${v.vehicleList.length} vehicles</button>` : ""}` : ""}
       ${open && ph ? `<div class="pgrid">${ph.photos.map((p,i)=>`<button class="tile" data-act="lapView" data-id="${v.id}" data-i="${i}" title="${esc(p.name)}">
-          <img src="${esc(p.thumb)}" alt="">${qBadge(p.result)}<span class="tile-cap">${p.vehicle?"V"+pad3(p.vehicle)+" · ":""}${esc(p.checkpoint.replace(/_/g," "))}</span></button>`).join("")}</div>
+          <img src="${esc(p.thumb)}" alt="">${qBadge(p.result)}<span class="tile-cap">${p.vehicle?vl(v.id,p.vehicle)+" · ":""}${esc(p.checkpoint.replace(/_/g," "))}</span></button>`).join("")}</div>
         ${ph.photos.length < ph.total ? `<button class="btn ghost block" style="margin-top:10px" data-act="lapMore" data-id="${v.id}">Show more (${ph.total-ph.photos.length} left)</button>` : ""}` : ""}
     </div>`;
   }).join("");
@@ -642,16 +678,22 @@ function renderLaptop(){
     </header>
     <div class="card" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px">
       <div style="flex:1;min-width:200px"><b style="font-size:1.1rem">${d.photos||0} photos · ${mb(d.bytes||0)}</b>
-        <div class="meta">${d.freeMB!=null ? `${(d.freeMB/1024).toFixed(1)} GB free on the phone · ` : ""}Folders keep Variant / Color / Interior-Exterior / Checkpoint</div></div>
+        <div class="meta">${d.freeMB!=null ? `${(d.freeMB/1024).toFixed(1)} GB free on the phone · ` : ""}One folder per vehicle, e.g. 1109_Punch_Smart</div></div>
       ${d.photos ? `<a class="btn primary" href="/download/all.zip" download style="text-decoration:none">${ic("down","sm")}Download everything</a>` : ""}
       <button class="btn soft" data-act="lapSim">${ic("sim","sm")}Simulation${L.sim && L.sim.enabled ? " · ON" : ""}</button>
       <button class="btn soft" data-act="lapSettings">${ic("gear","sm")}Checkpoint sequence</button>
       <button class="btn soft" data-act="lapRefresh">${ic("next","sm")}Refresh</button>
+      ${d.photos ? `<button class="btn soft danger-soft" data-act="lapAskClear" data-scope="all">${ic("trash","sm")}Clear all photos</button>` : ""}
+      ${L.confirm==="all" ? clearConfirm("all", `Delete all ${d.photos} photos from the phone hub?`) : ""}
     </div>
     ${L.simOpen ? simPanelHTML() : ""}
     <div class="vlist">${cards || `<div class="card empty">No variants yet.</div>`}</div>
-    <p class="meta" style="margin-top:16px">Each download is a folder named after the variant with files like <span class="mono">Punch_Pure_Calypso_Red_20261009_101512_exterior_orvm_left.jpg</span> in the camera's original format and resolution, plus photos.csv (vehicle number per file). Zips are made on the phone while they download. Large folders take a while over the hotspot.</p>
+    <p class="meta" style="margin-top:16px">Downloads contain one folder per vehicle, like <span class="mono">1109_Punch_Smart/</span>, with files such as <span class="mono">Punch_Smart_Calypso_Red_20261009_110912_exterior_orvm_left.jpg</span> (original format and resolution) and the VIN photo, plus photos.csv. Photos live only on the phone hub; the Zebra keeps nothing, so deleting here removes them everywhere. Zips are made on the phone while they download. Large folders take a while over the hotspot.</p>
     ${S.viewer ? viewerHTML() : ""}`;
+}
+function clearConfirm(scope, text){
+  return `<div class="confirm" style="margin-top:10px;width:100%"><p><b>${text}</b><br><span class="meta">This can't be undone. Download first if you still need them.</span></p>
+    <div class="row-btns"><button class="btn danger" data-act="lapClear" data-scope="${esc(scope)}">Delete</button><button class="btn ghost" data-act="lapCancelClear">Cancel</button></div></div>`;
 }
 function simPanelHTML(){
   const L=S.lap, sm=L.sim||{enabled:false,delayMs:1000,ngRate:10}, st=L.stats||{count:0};
@@ -708,11 +750,11 @@ function renderHome(){
           <div class="vsub">${v.interior.length} Interior · ${v.exterior.length} Exterior</div>
           ${last ? `<div class="vstat"><span><i class="dot ok-bg"></i>${s.complete} complete</span><span><i class="dot warn-bg"></i>${s.partial} partial</span></div>`
                  : `<div class="vstat">No photos yet</div>`}</div>
-        <div class="last">${last ? `<div>Last<b>V${pad3(last)}</b></div>` : ""}${ic("chev","sm")}</div>
+        <div class="last">${last ? `<div>Last<b>${vl(v.id,last)}</b></div>` : ""}${ic("chev","sm")}</div>
       </button>
       <div class="row-btns">
         <button class="btn primary" data-act="new" data-v="${v.id}">${ic("plus","sm")}New vehicle</button>
-        ${last ? `<button class="btn soft" data-act="resume" data-v="${v.id}" data-n="${last}">${ic("play","sm")}Continue V${pad3(last)}</button>` : ""}
+        ${last ? `<button class="btn soft" data-act="resume" data-v="${v.id}" data-n="${last}">${ic("play","sm")}Continue ${vl(v.id,last)}</button>` : ""}
       </div></div>`;
   }).join("");
   $app.innerHTML = `
@@ -726,6 +768,8 @@ function renderHome(){
       <div class="hero-text"><b>TATA</b><strong>PUNCH</strong><span>${S.cfg.variants.length} variants · ${S.cfg.common.interior.length + S.cfg.common.exterior.length} checkpoints</span></div>
       <div class="car"><img src="img/accomplished.jpg" alt=""></div>
     </div>
+    ${HUB() ? `<button class="vinbtn" data-act="scanVin"><span class="ico">${ic("scan","lg")}</span>
+      <span style="flex:1"><b>Scan VIN</b><span>Reads variant and color, creates the vehicle folder${S.storage && S.storage.hub ? " (simulated for now)" : ""}</span></span>${ic("chev")}</button>` : ""}
     <div class="stack">${items || `<div class="card empty">No variants yet. Add one from ☰ → Settings.</div>`}</div>
     ${HUB() ? hubCard() : ""}
     ${S.storage && S.storage.mirror ? "" : ""}
@@ -766,7 +810,7 @@ function renderVehicle(){
     </header>
     <div class="card vhead">
       <div class="vrow">
-        <span class="vnum">V${pad3(S.vehicle)}</span>
+        <span class="vnum">${vl(S.variant,S.vehicle)}</span>
         <span class="vcolor">${color ? `<i class="swatch" style="background:${swatchColor(color)}"></i>${esc(color)}` : `<span class="meta">Color not set</span>`}</span>
         ${S.cfg.colors.length || color ? `<button class="pill" data-act="changeColor">${color?"Change":"Set color"}</button>` : ""}
       </div>
@@ -783,10 +827,10 @@ function renderVehicle(){
     ${S.viewer ? viewerHTML() : ""}
     ${S.review ? reviewHTML() : ""}
     <div class="dock"><div class="dock-in">
-      ${nxt ? `<button class="btn soft side" data-act="new" data-v="${v.id}" aria-label="Next vehicle">${ic("next")}Next car</button>
+      ${nxt ? `<button class="btn soft side" data-act="${HUB()?"scanVin":"new"}" data-v="${v.id}" aria-label="Next vehicle">${ic(HUB()?"scan":"next")}${HUB()?"Next VIN":"Next car"}</button>
                <button class="btn primary main" data-act="shoot" data-s="${nxt.section}" data-c="${nxt.cp.id}">
                  ${ic("camera","lg")}<span style="flex:1;min-width:0"><b>Shoot next: ${esc(nxt.cp.name)}</b><small>${left} remaining</small></span>${ic("chev")}</button>`
-            : `<button class="btn primary main" data-act="new" data-v="${v.id}">${ic("check","lg")}<span style="flex:1"><b>All done · Next vehicle</b><small>Start V${pad3(S.vehicle+1)} or later number</small></span>${ic("chev")}</button>`}
+            : `<button class="btn primary main" data-act="${HUB()?"scanVin":"new"}" data-v="${v.id}">${ic("check","lg")}<span style="flex:1"><b>${HUB() ? "All done · Scan next VIN" : "All done · Next vehicle"}</b><small>${HUB() ? "Scan the next car's VIN" : "Start the next vehicle"}</small></span>${ic("chev")}</button>`}
     </div></div>`;
 }
 
@@ -803,7 +847,7 @@ function reviewHTML(){
   else if(r.result && r.result.status==="warn") st=`<div class="rv-status warn">! ${esc((r.result.checks||[]).join(" · "))} — consider retaking</div>`;
   else st=`<div class="rv-status ok">${ic("check","sm")}Saved${r.result ? " · checks passed" : ""}</div>`;
   return `<div class="review" role="dialog" aria-label="Review photo">
-    <div class="rv-top"><b>${esc(cp.name)}</b><span>${r.section} · V${pad3(r.vehicle)}</span></div>
+    <div class="rv-top"><b>${esc(cp.name)}</b><span>${r.section} · ${vl(S.variant,r.vehicle)}</span></div>
     <img src="${esc(r.url)}" alt="">
     ${st}
     <div class="rv-btns">
@@ -834,7 +878,7 @@ function sheetHTML(){
   const sh=S.sheet, v=findV(S.cfg, sh.vid);
   return `<div class="sheet-bg"><div class="sheet" role="dialog" aria-label="Vehicle color">
     <div style="display:flex;gap:12px;align-items:center">${carTile(v.name).replace('class="car"','class="car" style="width:96px;height:64px;flex:0 0 auto"')}
-      <h2>${sh.change ? `V${pad3(sh.vehicle)} color` : `New ${esc(v.name)} vehicle`}</h2></div>
+      <h2>${sh.change ? `${vl(sh.vid,sh.vehicle)} color` : `New ${esc(v.name)} vehicle`}</h2></div>
     <label class="meta" for="sheetColor">Vehicle color</label>
     <select id="sheetColor">
       <option value="" ${sh.color?"":"selected"} disabled>Select color…</option>
@@ -1026,7 +1070,7 @@ function renderBrowse(){
     ${b.photos.length ? `<p class="label">${b.photos.length} photo${b.photos.length===1?"":"s"}</p>
       <div class="grid">${b.photos.map((p,i)=>`<button class="tile" data-act="browseView" data-i="${i}">
         <img data-path="${esc(p.path)}" ${thumbCache[p.path] ? `src="${esc(thumbCache[p.path])}" class="ready"` : ""} alt="">
-        ${qBadge(p.result, p)}<span class="tile-cap">${p.vehicle ? "V"+pad3(p.vehicle)+" · " : ""}${fmtTime(p.time)}</span></button>`).join("")}</div>` : ""}
+        ${qBadge(p.result, p)}<span class="tile-cap">${p.vehicle ? vl(p.path.split("/")[0], p.vehicle)+" · " : ""}${fmtTime(p.time)}</span></button>`).join("")}</div>` : ""}
     ${!b.dirs.length && !b.photos.length ? `<div class="card empty">This folder is empty.</div>` : ""}
     ${S.viewer ? viewerHTML() : ""}`;
 }
@@ -1175,7 +1219,7 @@ function startVehicle(vid, color){
   const r=nat("newVehicle", vid);
   if(color) nat("setVehicleColor", vid, r.vehicle, color);
   openVehicle(vid, r.vehicle);
-  toast(`Started V${pad3(r.vehicle)}${color?" · "+color:""}`);
+  toast(`Started ${vl(vid, r.vehicle)}${color?" · "+color:""}`);
 }
 function goHome(){
   S.screen="home"; S.confirm=null; S.viewer=null; S.sheet=null; S.menu=false;
@@ -1258,6 +1302,7 @@ function fsUpdate(){
   b.setAttribute("aria-label", isFs()?"Exit full screen":"Full screen");
 }
 async function fsToggle(){
+  S.wantFs = !isFs();
   try{
     if(isFs()) await (document.exitFullscreen || document.webkitExitFullscreen).call(document);
     else await (document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen).call(document.documentElement, {navigationUI:"hide"});
@@ -1268,7 +1313,7 @@ document.addEventListener("fullscreenchange", fsUpdate);
 document.addEventListener("webkitfullscreenchange", fsUpdate);
 
 // ---------- built-in camera (needs https; falls back to the phone's camera app on plain http) ----------
-const CAM = {stream:null, track:null, ic:null, ctx:null, blob:null, url:null, pending:0, busy:false, last:null, retakeOf:null};
+const CAM = {stream:null, track:null, ic:null, ctx:null, blob:null, url:null, pending:0, busy:false, last:null, retakeOf:null, idle:null, vin:null};
 const $c = id => document.getElementById(id);
 function camSupported(){ return !!(window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia); }
 
@@ -1281,11 +1326,23 @@ function startCapture(section, cid, replace){
   camOpen(section, cid, replace||"");
 }
 
+function ensureFs(){   // called from taps: brings full screen back if the user wanted it
+  if(S.wantFs && !isFs()){ try{ (document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen).call(document.documentElement, {navigationUI:"hide"}); }catch(e){} }
+}
 async function camOpen(section, cid, replace){
   CAM.ctx={section, cp:cid, replace};
   S.section=section;
+  await camStart();
+}
+function camOpenVin(){
+  CAM.ctx={mode:"vin"}; CAM.vin=null;
+  camStart();
+}
+async function camStart(){
+  ensureFs();
+  clearTimeout(CAM.idle);
   $c("cam").hidden=false; camLive(); camLabel();
-  if(CAM.stream) return;
+  if(CAM.stream && CAM.track && CAM.track.readyState==="live"){ try{ $c("camVideo").play(); }catch(e){} return; }
   $c("camMsg").hidden=false; $c("camMsg").textContent="Starting camera…";
   try{
     const stream = await navigator.mediaDevices.getUserMedia({audio:false, video:{facingMode:{ideal:"environment"}, width:{ideal:4096}, height:{ideal:3072}}});
@@ -1300,10 +1357,12 @@ async function camOpen(section, cid, replace){
   }
 }
 
+function camStop(){ if(CAM.stream){ CAM.stream.getTracks().forEach(t=>t.stop()); CAM.stream=null; CAM.track=null; CAM.ic=null; } }
 function camClose(){
   $c("cam").hidden=true;
   if(CAM.url){ URL.revokeObjectURL(CAM.url); CAM.url=null; } CAM.blob=null;
-  if(CAM.stream){ CAM.stream.getTracks().forEach(t=>t.stop()); CAM.stream=null; CAM.track=null; CAM.ic=null; }
+  // keep the camera running for 2 minutes so reopening is instant and doesn't ask for permission again
+  clearTimeout(CAM.idle); CAM.idle=setTimeout(()=>{ if($c("cam").hidden) camStop(); }, 120000);
   S.busy=null;
   try{ loadProgress(); }catch(e){}
   render();
@@ -1311,15 +1370,53 @@ function camClose(){
 }
 
 function camLabel(){
+  if(CAM.ctx.mode==="vin"){
+    $c("camName").textContent="Scan VIN plate";
+    $c("camSub").textContent="Point at the VIN label and shoot";
+    return;
+  }
   const v=V(), list=v[CAM.ctx.section], i=list.findIndex(c=>c.id===CAM.ctx.cp), cp=list[i]||{name:CAM.ctx.cp};
   $c("camName").textContent=cp.name;
-  $c("camSub").textContent=`${CAM.ctx.section==="interior"?"Interior":"Exterior"} · ${i+1} of ${list.length} · V${pad3(S.vehicle)}${CAM.ctx.replace?" · retake":""}`;
+  $c("camSub").textContent=`${CAM.ctx.section==="interior"?"Interior":"Exterior"} · ${i+1} of ${list.length} · ${vl(S.variant,S.vehicle)}${CAM.ctx.replace?" · retake":""}`;
   const nx=nextInSection(CAM.ctx.section, CAM.ctx.cp);
   $c("camNextLbl").textContent = nx ? "Next" : "Done";
   $c("camNextName").textContent = nx ? nx.name : (CAM.ctx.section==="interior" ? "Interior done" : "Exterior done");
   $c("camNext").querySelector(".c").innerHTML = ic(nx ? "next" : "check");
 }
 function camQueue(){ const q=$c("camQ"); q.hidden=!CAM.pending; q.textContent=`Saving ${CAM.pending}`; }
+// ---------- VIN scan (OCR is simulated on the hub for now: random variant + color)
+async function vinRead(blob){
+  const v=$c("camVerdict"); v.className="verdict wait"; v.textContent="Reading VIN…"; v.hidden=false;
+  const fd=new FormData(); fd.append("file", blob, "vin."+(blob.type==="image/png"?"png":"jpg"));
+  let r;
+  r = await new Promise(res => {
+    const x=new XMLHttpRequest(); x.open("POST","/api/vin");
+    x.onload=()=>{ try{ res(JSON.parse(x.responseText)); }catch(e){ res({error:"Hub error "+x.status}); } };
+    x.onerror=()=>res({error:"No answer from the hub"});
+    x.send(fd);
+  });
+  if(r.error){ v.className="verdict ng"; v.innerHTML=`Couldn't read<small>${esc(r.error)}</small>`; $c("camVinPanel").hidden=false; $c("camVinInfo").innerHTML=""; vinButtons(false); return; }
+  CAM.vin=r; v.hidden=true;
+  try{ loadLastVehicles(); }catch(e){}
+  $c("camVinInfo").innerHTML = `<span class="vin">${esc(r.vin)}</span>
+    <div class="row"><span>Variant <b>${esc(r.variantName)}</b></span><span>Color <b>${esc(r.color||"not set")}</b></span><span>Folder <b>${esc(r.seq)}_${esc(r.variant)}</b></span></div>
+    ${r.simulated ? `<div class="row" style="font-size:.78rem">Simulated OCR · ${(r.ms/1000).toFixed(1)} s</div>` : ""}`;
+  $c("camVinPanel").hidden=false; vinButtons(true); buzz(40);
+}
+function vinButtons(ok){ $c("camVinInt").disabled=!ok; $c("camVinExt").disabled=!ok; }
+function vinStart(section){
+  const r=CAM.vin; if(!r) return;
+  ensureFs();
+  if(CAM.url){ URL.revokeObjectURL(CAM.url); CAM.url=null; } CAM.blob=null;
+  loadConfig(); loadLastVehicles();
+  openVehicle(r.variant, r.vehicle);           // checklist underneath, camera stays open
+  S.section=section; render();
+  const list=V()[section];
+  if(!list.length){ camClose(); toast(`No ${section} checkpoints for this variant`); return; }
+  CAM.ctx={section, cp:list[0].id, replace:""}; CAM.vin=null;
+  camLabel(); camLive();
+}
+
 function camShowVerdict(r, totalMs){
   const v=$c("camVerdict");
   if(!r || r.error){ v.className="verdict ng"; v.innerHTML=`Not saved<small>${esc(r && r.error || "no answer from hub")}</small>`; return; }
@@ -1330,7 +1427,7 @@ function camShowVerdict(r, totalMs){
   buzz(res.verdict==="NG"?[80,50,80]:40);
 }
 function camLive(){
-  $c("camVerdict").hidden=true;
+  $c("camVerdict").hidden=true; $c("camVinPanel").hidden=true;
   $c("camShot").hidden=true; $c("camVideo").hidden=false;
   $c("camLive").hidden=false; $c("camReview").hidden=true; $c("camShutter").disabled=false;
 }
@@ -1354,9 +1451,11 @@ async function camShoot(){
   blob = await camUpright(blob);
   CAM.blob=blob; CAM.url=URL.createObjectURL(blob);
   $c("camShot").src=CAM.url; $c("camShot").hidden=false; $c("camVideo").hidden=true;
-  $c("camLive").hidden=true; $c("camReview").hidden=false;
+  $c("camLive").hidden=true;
   CAM.busy=false;
   buzz(30);
+  if(CAM.ctx.mode==="vin"){ return vinRead(blob); }
+  $c("camReview").hidden=false;
   // send it now so the result (OK / NG) shows on this photo
   const ctx={...CAM.ctx}, t0=performance.now(), prev=CAM.retakeOf;
   CAM.retakeOf=null;
@@ -1412,7 +1511,17 @@ document.addEventListener("DOMContentLoaded", () => {
   $c("fsBtn").onclick=fsToggle; fsUpdate();
   $c("camClose").innerHTML=ic("x"); $c("camRetake").querySelector(".c").innerHTML=ic("retake"); $c("camOk").querySelector(".c").innerHTML=ic("check");
   $c("camClose").onclick=()=>{ if(CAM.blob && !confirmLeave()) return; camClose(); };
-  $c("camShutter").onclick=camShoot;
+  $c("camShutter").onclick=()=>{ ensureFs(); camShoot(); };
+  $c("camVinRetake").innerHTML=ic("retake");
+  $c("camVinRetake").onclick=()=>{   // throw away the vehicle that scan created, then scan again
+    const r=CAM.vin; CAM.vin=null;
+    if(r){ try{ nat("clearPhotos", r.variant+"/"+r.vehicle); }catch(e){} }
+    if(CAM.url){ URL.revokeObjectURL(CAM.url); CAM.url=null; } CAM.blob=null;
+    camLive();
+  };
+  $c("camVinInt").onclick=()=>vinStart("interior");
+  $c("camVinExt").onclick=()=>vinStart("exterior");
+  ["camRetake","camOk","camNext","camClose"].forEach(id=>$c(id).addEventListener("click", ensureFs, true));
   $c("camRetake").onclick=()=>{   // the next shot replaces the one just sent
     if(CAM.url) URL.revokeObjectURL(CAM.url); CAM.url=null; CAM.blob=null;
     CAM.retakeOf=CAM.last; camLive();
@@ -1490,8 +1599,21 @@ $app.addEventListener("click", e => {
         if(left){ S.section=other; render(); }
       }
     }
+    else if(a==="scanVin"){ camOpenVin(); }
+    else if(a==="lapAskClear"){ S.lap.confirm=b.dataset.scope; render(); }
+    else if(a==="lapCancelClear"){ S.lap.confirm=null; render(); }
+    else if(a==="lapClear"){
+      const r=nat("clearPhotos", b.dataset.scope); S.lap.confirm=null; S.lap.photos={}; S.lap.open=null;
+      loadLaptop(); render(); toast(`Deleted ${r.removed} photo${r.removed===1?"":"s"} from the phone`);
+    }
     else if(a==="pickRole"){
       try{ localStorage.setItem("mv-role", b.dataset.r); }catch(err){}
+      const local = ["localhost","127.0.0.1"].includes(location.hostname);
+      if(HUB() && !local){
+        // the Zebra needs https for the camera; the laptop stays on plain http (no warning, normal downloads)
+        if(b.dataset.r==="zebra" && location.protocol==="http:"){ location.href=`https://${location.hostname}:8443/#zebra`; return; }
+        if(b.dataset.r==="laptop" && location.protocol==="https:"){ location.href=`http://${location.hostname}:8000/#laptop`; return; }
+      }
       if(b.dataset.r==="laptop"){ loadLaptop(); S.screen="laptop"; } else { S.screen="launch"; }
       render(); window.scrollTo(0,0);
     }
@@ -1515,6 +1637,7 @@ $app.addEventListener("click", e => {
       else { S.lap.open=id; S.lap.photos[id]=nat("variantPhotos", id, 0, 48); }
       render();
     }
+    else if(a==="lapAllVeh"){ S.lap.allVeh=b.dataset.id; render(); }
     else if(a==="lapMore"){
       const id=b.dataset.id, cur=S.lap.photos[id], more=nat("variantPhotos", id, cur.photos.length, 48);
       cur.photos=cur.photos.concat(more.photos); cur.total=more.total; render();
@@ -1539,7 +1662,7 @@ $app.addEventListener("click", e => {
     else if(a==="sheetOk"){
       const sh=S.sheet; if(!sh.color) return;
       if(sh.change){ const r=nat("setVehicleColor", sh.vid, sh.vehicle, sh.color); S.sheet=null; loadProgress(); render();
-        toast(`V${pad3(sh.vehicle)} · ${sh.color}${r.renamed ? ` · ${r.renamed} photo${r.renamed===1?"":"s"} moved` : ""}`); }
+        toast(`${vl(sh.vid,sh.vehicle)} · ${sh.color}${r.renamed ? ` · ${r.renamed} photo${r.renamed===1?"":"s"} moved` : ""}`); }
       else startVehicle(sh.vid, sh.color);
     }
     else if(a==="resume"){ openVehicle(b.dataset.v, +b.dataset.n); }
@@ -1642,7 +1765,11 @@ $app.addEventListener("keydown", e => {
   try{
     S.storage = nat("storage");
     if(S.storage.granted){ loadConfig(); loadLastVehicles(); }
-    if(S.storage.hub) S.screen="role";
+    if(S.storage.hub){
+      S.screen="role";
+      if(location.hash==="#zebra") S.screen="launch";
+      else if(location.hash==="#laptop"){ loadLaptop(); S.screen="laptop"; }
+    }
     render();
     const waiting = window.Native.ready();
     if(waiting && waiting !== "null") window.onPhoto(waiting);
