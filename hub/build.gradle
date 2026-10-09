@@ -1,0 +1,53 @@
+plugins {
+    id 'com.android.application'
+}
+
+def buildNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInteger()
+
+android {
+    namespace 'com.rishiraj.mobilevision.hub'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.rishiraj.mobilevision.hub'
+        minSdk 26
+        targetSdk 34
+        versionCode buildNumber
+        versionName "1.0.${buildNumber}"
+    }
+
+    signingConfigs {
+        punch {
+            storeFile file('../app/punch.keystore')
+            storePassword 'punchcapture'
+            keyAlias 'punch'
+            keyPassword 'punchcapture'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.punch
+        }
+        debug {
+            signingConfig signingConfigs.punch
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    packagingOptions {
+        resources { excludes += ['META-INF/*'] }
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core:1.13.1'
+    implementation 'androidx.exifinterface:exifinterface:1.3.7'
+    implementation 'org.nanohttpd:nanohttpd:2.3.1'
+    implementation 'com.google.zxing:core:3.5.3'
+}

@@ -1,0 +1,363 @@
+{
+  "colors": [],
+  "common": {
+    "interior": [
+      {
+        "id": "gsl_knob",
+        "name": "GSL Knob"
+      },
+      {
+        "id": "usb_port",
+        "name": "USB Port"
+      },
+      {
+        "id": "door_trim",
+        "name": "Door Trim"
+      },
+      {
+        "id": "roof_console_mirror",
+        "name": "Roof Console + Mirror"
+      },
+      {
+        "id": "left_support_handle",
+        "name": "Left Support Handle"
+      },
+      {
+        "id": "rear_support_handle_left",
+        "name": "Rear Support Handle Left"
+      },
+      {
+        "id": "rear_support_handle_right",
+        "name": "Rear Support Handle Right"
+      }
+    ],
+    "exterior": [
+      {
+        "id": "fog_lights",
+        "name": "Fog Lights"
+      },
+      {
+        "id": "bumper_mascot_logo",
+        "name": "Bumper + Mascot + Logo"
+      },
+      {
+        "id": "orvm_left",
+        "name": "ORVM Left"
+      },
+      {
+        "id": "orvm_right",
+        "name": "ORVM Right"
+      },
+      {
+        "id": "door_handle_left",
+        "name": "Door Handle Left"
+      },
+      {
+        "id": "door_handle_right",
+        "name": "Door Handle Right"
+      }
+    ]
+  },
+  "variants": [
+    {
+      "id": "Punch_Smart",
+      "name": "Punch Smart",
+      "interior": [
+        {
+          "id": "gsl_knob",
+          "name": "GSL Knob"
+        },
+        {
+          "id": "usb_port",
+          "name": "USB Port"
+        },
+        {
+          "id": "door_trim",
+          "name": "Door Trim"
+        },
+        {
+          "id": "roof_console_mirror",
+          "name": "Roof Console + Mirror"
+        },
+        {
+          "id": "left_support_handle",
+          "name": "Left Support Handle"
+        },
+        {
+          "id": "rear_support_handle_left",
+          "name": "Rear Support Handle Left"
+        },
+        {
+          "id": "rear_support_handle_right",
+          "name": "Rear Support Handle Right"
+        }
+      ],
+      "exterior": [
+        {
+          "id": "fog_lights",
+          "name": "Fog Lights"
+        },
+        {
+          "id": "bumper_mascot_logo",
+          "name": "Bumper + Mascot + Logo"
+        },
+        {
+          "id": "orvm_left",
+          "name": "ORVM Left"
+        },
+        {
+          "id": "orvm_right",
+          "name": "ORVM Right"
+        },
+        {
+          "id": "door_handle_left",
+          "name": "Door Handle Left"
+        },
+        {
+          "id": "door_handle_right",
+          "name": "Door Handle Right"
+        }
+      ]
+    },
+    {
+      "id": "Punch_Pure",
+      "name": "Punch Pure",
+      "interior": [
+        {
+          "id": "gsl_knob",
+          "name": "GSL Knob"
+        },
+        {
+          "id": "usb_port",
+          "name": "USB Port"
+        },
+        {
+          "id": "door_trim",
+          "name": "Door Trim"
+        },
+        {
+          "id": "roof_console_mirror",
+          "name": "Roof Console + Mirror"
+        },
+        {
+          "id": "left_support_handle",
+          "name": "Left Support Handle"
+        },
+        {
+          "id": "rear_support_handle_left",
+          "name": "Rear Support Handle Left"
+        },
+        {
+          "id": "rear_support_handle_right",
+          "name": "Rear Support Handle Right"
+        }
+      ],
+      "exterior": [
+        {
+          "id": "fog_lights",
+          "name": "Fog Lights"
+        },
+        {
+          "id": "bumper_mascot_logo",
+          "name": "Bumper + Mascot + Logo"
+        },
+        {
+          "id": "orvm_left",
+          "name": "ORVM Left"
+        },
+        {
+          "id": "orvm_right",
+          "name": "ORVM Right"
+        },
+        {
+          "id": "door_handle_left",
+          "name": "Door Handle Left"
+        },
+        {
+          "id": "door_handle_right",
+          "name": "Door Handle Right"
+        }
+      ]
+    },
+    {
+      "id": "Punch_Pure_Plus",
+      "name": "Punch Pure Plus",
+      "interior": [
+        {
+          "id": "gsl_knob",
+          "name": "GSL Knob"
+        },
+        {
+          "id": "usb_port",
+          "name": "USB Port"
+        },
+        {
+          "id": "door_trim",
+          "name": "Door Trim"
+        },
+        {
+          "id": "roof_console_mirror",
+          "name": "Roof Console + Mirror"
+        },
+        {
+          "id": "left_support_handle",
+          "name": "Left Support Handle"
+        },
+        {
+          "id": "rear_support_handle_left",
+          "name": "Rear Support Handle Left"
+        },
+        {
+          "id": "rear_support_handle_right",
+          "name": "Rear Support Handle Right"
+        }
+      ],
+      "exterior": [
+        {
+          "id": "fog_lights",
+          "name": "Fog Lights"
+        },
+        {
+          "id": "bumper_mascot_logo",
+          "name": "Bumper + Mascot + Logo"
+        },
+        {
+          "id": "orvm_left",
+          "name": "ORVM Left"
+        },
+        {
+          "id": "orvm_right",
+          "name": "ORVM Right"
+        },
+        {
+          "id": "door_handle_left",
+          "name": "Door Handle Left"
+        },
+        {
+          "id": "door_handle_right",
+          "name": "Door Handle Right"
+        }
+      ]
+    },
+    {
+      "id": "Punch_Adventure",
+      "name": "Punch Adventure",
+      "interior": [
+        {
+          "id": "gsl_knob",
+          "name": "GSL Knob"
+        },
+        {
+          "id": "usb_port",
+          "name": "USB Port"
+        },
+        {
+          "id": "door_trim",
+          "name": "Door Trim"
+        },
+        {
+          "id": "roof_console_mirror",
+          "name": "Roof Console + Mirror"
+        },
+        {
+          "id": "left_support_handle",
+          "name": "Left Support Handle"
+        },
+        {
+          "id": "rear_support_handle_left",
+          "name": "Rear Support Handle Left"
+        },
+        {
+          "id": "rear_support_handle_right",
+          "name": "Rear Support Handle Right"
+        }
+      ],
+      "exterior": [
+        {
+          "id": "fog_lights",
+          "name": "Fog Lights"
+        },
+        {
+          "id": "bumper_mascot_logo",
+          "name": "Bumper + Mascot + Logo"
+        },
+        {
+          "id": "orvm_left",
+          "name": "ORVM Left"
+        },
+        {
+          "id": "orvm_right",
+          "name": "ORVM Right"
+        },
+        {
+          "id": "door_handle_left",
+          "name": "Door Handle Left"
+        },
+        {
+          "id": "door_handle_right",
+          "name": "Door Handle Right"
+        }
+      ]
+    },
+    {
+      "id": "Punch_Accomplished",
+      "name": "Punch Accomplished",
+      "interior": [
+        {
+          "id": "gsl_knob",
+          "name": "GSL Knob"
+        },
+        {
+          "id": "usb_port",
+          "name": "USB Port"
+        },
+        {
+          "id": "door_trim",
+          "name": "Door Trim"
+        },
+        {
+          "id": "roof_console_mirror",
+          "name": "Roof Console + Mirror"
+        },
+        {
+          "id": "left_support_handle",
+          "name": "Left Support Handle"
+        },
+        {
+          "id": "rear_support_handle_left",
+          "name": "Rear Support Handle Left"
+        },
+        {
+          "id": "rear_support_handle_right",
+          "name": "Rear Support Handle Right"
+        }
+      ],
+      "exterior": [
+        {
+          "id": "fog_lights",
+          "name": "Fog Lights"
+        },
+        {
+          "id": "bumper_mascot_logo",
+          "name": "Bumper + Mascot + Logo"
+        },
+        {
+          "id": "orvm_left",
+          "name": "ORVM Left"
+        },
+        {
+          "id": "orvm_right",
+          "name": "ORVM Right"
+        },
+        {
+          "id": "door_handle_left",
+          "name": "Door Handle Left"
+        },
+        {
+          "id": "door_handle_right",
+          "name": "Door Handle Right"
+        }
+      ]
+    }
+  ]
+}

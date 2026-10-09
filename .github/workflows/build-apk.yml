@@ -32,10 +32,12 @@ jobs:
           gradle-version: '8.9'
 
       - name: Build signed APK
-        run: gradle --no-daemon :app:assembleRelease
+        run: gradle --no-daemon :app:assembleRelease :hub:assembleRelease
 
       - name: Name the APK
-        run: cp app/build/outputs/apk/release/app-release.apk MobileVision-v$VERSION.apk
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk MobileVision-v$VERSION.apk
+          cp hub/build/outputs/apk/release/hub-release.apk MobileVision-Hub-v$VERSION.apk
 
       - name: Publish to Releases
         uses: softprops/action-gh-release@v2
@@ -43,13 +45,16 @@ jobs:
           tag_name: build-${{ github.run_number }}
           name: MobileVision.Ai v${{ env.VERSION }}
           body: Download the .apk below on the Zebra and open it to install or update.
-          files: MobileVision-v${{ env.VERSION }}.apk
+          files: |
+            MobileVision-v${{ env.VERSION }}.apk
+            MobileVision-Hub-v${{ env.VERSION }}.apk
           make_latest: true
 
       - name: Build download page
         run: |
           mkdir -p public
           cp MobileVision-v$VERSION.apk public/MobileVision.apk
+          cp MobileVision-Hub-v$VERSION.apk public/MobileVision-Hub.apk
           SIZE=$(du -m public/MobileVision.apk | cut -f1)
           sed -e "s/__VERSION__/$VERSION/g" -e "s/__SIZE__/${SIZE} MB/g" -e "s/__DATE__/$(date -u +'%d %b %Y')/g" site/index.html > public/index.html
           printf '/MobileVision.apk\n  Content-Type: application/vnd.android.package-archive\n' > public/_headers
