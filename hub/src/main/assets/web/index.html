@@ -61,6 +61,29 @@ header.top h1{font-size:1.28rem;margin:0;flex:1;min-width:0;white-space:nowrap;o
 .label.blue{color:var(--primary)}
 .meta{font-size:.86rem;color:var(--muted)}
 .err{color:var(--bad);font-size:.9rem}
+.fsbtn{position:fixed;right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);z-index:12;width:54px;height:54px;border-radius:16px;
+  border:1px solid var(--line);background:var(--card);color:var(--fg);display:grid;place-items:center;box-shadow:0 4px 14px rgba(15,27,45,.18)}
+.fsbtn[hidden]{display:none}
+.fsbtn.raised{bottom:calc(env(safe-area-inset-bottom,0px) + 96px)}
+.verdict{position:absolute;top:14px;left:50%;transform:translateX(-50%);padding:10px 26px;border-radius:14px;font:900 2.4rem var(--f-ui);
+  letter-spacing:.06em;color:#fff;box-shadow:0 6px 24px rgba(0,0,0,.4);text-align:center;line-height:1}
+.verdict small{display:block;font:600 .8rem var(--f-num);letter-spacing:0;margin-top:4px;opacity:.9}
+.verdict.ok{background:#1f9d55} .verdict.ng{background:#d93a32} .verdict.wait{background:rgba(20,28,42,.85);font-size:1.1rem;padding:10px 18px}
+.verdict[hidden]{display:none}
+.vb{position:absolute;top:3px;left:3px;font:800 .62rem var(--f-ui);color:#fff;border-radius:5px;padding:1px 5px}
+.vb.ok{background:#1f9d55} .vb.ng{background:#d93a32}
+.switch{position:relative;width:52px;height:30px;flex:0 0 auto}
+.switch input{opacity:0;width:0;height:0}
+.switch span{position:absolute;inset:0;border-radius:999px;background:var(--line);transition:background .2s}
+.switch span::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .2s}
+.switch input:checked+span{background:var(--primary)}
+.switch input:checked+span::after{transform:translateX(22px)}
+.simrow{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 0;border-top:1px solid var(--line)}
+.simrow:first-of-type{border-top:0}
+.simrow input[type=range]{flex:1;min-width:120px}
+.simval{font:700 1rem var(--f-num);min-width:64px;text-align:right}
+.bars{display:flex;align-items:flex-end;gap:3px;height:60px;margin-top:8px}
+.bars i{flex:1;border-radius:3px 3px 0 0;min-height:2px}
 #cam{position:fixed;inset:0;z-index:40;background:#000;color:#fff;display:flex;flex-direction:column}
 #cam[hidden]{display:none}
 .cam-top{display:flex;align-items:center;gap:12px;padding:calc(env(safe-area-inset-top,0px) + 10px) 14px 10px;background:rgba(0,0,0,.72);z-index:2}
@@ -322,6 +345,7 @@ select.compact{width:auto;min-height:40px;padding:8px 12px;border-radius:999px;f
 <body>
 <div class="wrap" id="app"></div>
 <div id="toast" class="toast" hidden></div>
+<button class="fsbtn" id="fsBtn" hidden aria-label="Full screen"></button>
 <div id="cam" hidden>
   <div class="cam-top">
     <button class="cam-x" id="camClose" aria-label="Close camera"></button>
@@ -331,6 +355,7 @@ select.compact{width:auto;min-height:40px;padding:8px 12px;border-radius:999px;f
   <div class="cam-stage">
     <video id="camVideo" playsinline autoplay muted></video>
     <img id="camShot" alt="" hidden>
+    <div class="verdict" id="camVerdict" hidden></div>
     <div class="cam-msg" id="camMsg" hidden></div>
   </div>
   <div class="cam-bottom cam-live" id="camLive"><button class="shutter" id="camShutter" aria-label="Take photo"></button></div>
@@ -360,6 +385,9 @@ const ICONS = {
   chart:'<path d="M3 3v18h18M7 16v-4M12 16V8M17 16v-7"/>', lock:'<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   up:'<path d="M12 19V5M5 12l7-7 7 7"/>', down:'<path d="M12 5v14M19 12l-7 7-7-7"/>', next:'<path d="M5 12h14M13 5l7 7-7 7"/>',
   dots:'<circle cx="12" cy="5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="12" cy="19" r="1.2"/>',
+  expand:'<path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/>',
+  shrink:'<path d="M3 8h5V3M21 8h-5V3M3 16h5v5M21 16h-5v5"/>',
+  sim:'<path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/>',
   retake:'<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>',
   laptop:'<rect x="4" y="4" width="16" height="11" rx="1.5"/><path d="M2 19h20"/>',
   phone:'<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>',
@@ -496,11 +524,13 @@ function pendingCount(){
 // ---------- processing results (done on the laptop) ----------
 const HUB = () => !!(S.storage && S.storage.hub);
 function qBadge(r, ph){
+  if(r && r.verdict) return `<span class="vb ${r.verdict==="NG"?"ng":"ok"}">${r.verdict}</span>`;
   if(!r || !r.status) return "";
   return r.status==="warn" ? `<span class="qb" title="${esc((r.checks||[]).join(", "))}">!</span>` : "";
 }
 function resultHTML(r){
   if(!r) return "";
+  if(r.verdict) return `<div class="result ${r.verdict==="NG"?"warn":"ok"}"><b style="color:${r.verdict==="NG"?"#ef5b52":"#38c172"};font-size:1.3rem">${r.verdict}</b><span class="nums">processing ${(r.ms/1000).toFixed(2)} s${r.simulated?" · simulated":""}</span></div>`;
   const ok = r.status!=="warn";
   const extra = r.detections ? `<span>Detected: ${esc(r.detections.join(", ")||"nothing")}</span>` : "";
   return `<div class="result ${ok?"ok":"warn"}"><b>${ok ? "Checks passed" : esc((r.checks||[]).join(" · "))}</b>${extra}
@@ -524,6 +554,7 @@ function syncCard(){
 // ---------- render ----------
 function render(){
   if(S.storage && !S.storage.granted) return renderPermission();
+  fsUpdate();
   document.getElementById("app").classList.toggle("wide", S.screen==="laptop" || S.screen==="role" || (S.settingsFrom==="laptop" && (S.screen==="global" || S.screen==="setup")));
   ({role:renderRole, laptop:renderLaptop, launch:renderLaunch, home:renderHome, vehicle:renderVehicle, setup:renderSetup, global:renderGlobal, zip:renderZip,
     browse:renderBrowse, stats:renderStats})[S.screen]();
@@ -613,14 +644,42 @@ function renderLaptop(){
       <div style="flex:1;min-width:200px"><b style="font-size:1.1rem">${d.photos||0} photos · ${mb(d.bytes||0)}</b>
         <div class="meta">${d.freeMB!=null ? `${(d.freeMB/1024).toFixed(1)} GB free on the phone · ` : ""}Folders keep Variant / Color / Interior-Exterior / Checkpoint</div></div>
       ${d.photos ? `<a class="btn primary" href="/download/all.zip" download style="text-decoration:none">${ic("down","sm")}Download everything</a>` : ""}
+      <button class="btn soft" data-act="lapSim">${ic("sim","sm")}Simulation${L.sim && L.sim.enabled ? " · ON" : ""}</button>
       <button class="btn soft" data-act="lapSettings">${ic("gear","sm")}Checkpoint sequence</button>
       <button class="btn soft" data-act="lapRefresh">${ic("next","sm")}Refresh</button>
     </div>
+    ${L.simOpen ? simPanelHTML() : ""}
     <div class="vlist">${cards || `<div class="card empty">No variants yet.</div>`}</div>
     <p class="meta" style="margin-top:16px">Each download is a folder named after the variant with files like <span class="mono">Punch_Pure_Calypso_Red_20261009_101512_exterior_orvm_left.jpg</span> in the camera's original format and resolution, plus photos.csv (vehicle number per file). Zips are made on the phone while they download. Large folders take a while over the hotspot.</p>
     ${S.viewer ? viewerHTML() : ""}`;
 }
-function loadLaptop(){ S.lap = S.lap || {}; S.lap.data = nat("variants"); S.lap.photos = S.lap.photos || {}; }
+function simPanelHTML(){
+  const L=S.lap, sm=L.sim||{enabled:false,delayMs:1000,ngRate:10}, st=L.stats||{count:0};
+  const maxMs=Math.max(1,...(st.recent||[]).map(r=>r.ms));
+  return `<div class="card" style="margin-bottom:14px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px"><h2 style="margin:0;font-size:1.1rem;flex:1">Processing simulation</h2>
+      <button class="btn ghost" data-act="lapSim" style="min-height:36px;padding:6px 12px">Close</button></div>
+    <p class="meta" style="margin:0 0 6px">Stands in for the trained model: every new photo from the Zebra waits this long on the phone, then shows <b style="color:var(--ok)">OK</b> or <b style="color:var(--bad)">NG</b> on the Zebra. Use it to see how long operators wait per photo.</p>
+    <div class="simrow"><div><b>Simulation</b><div class="meta">${sm.enabled?"On: new photos get a result":"Off: photos are just saved"}</div></div>
+      <label class="switch"><input type="checkbox" id="simOn" ${sm.enabled?"checked":""}><span></span></label></div>
+    <div class="simrow"><div style="min-width:120px"><b>Processing time</b><div class="meta">0 to 3 seconds</div></div>
+      <input type="range" id="simDelay" min="0" max="3000" step="100" value="${sm.delayMs}"><span class="simval" id="simDelayV">${(sm.delayMs/1000).toFixed(1)} s</span></div>
+    <div class="simrow"><div style="min-width:120px"><b>NG rate</b><div class="meta">Share of photos marked NG</div></div>
+      <input type="range" id="simNg" min="0" max="100" step="5" value="${sm.ngRate}"><span class="simval" id="simNgV">${sm.ngRate}%</span></div>
+    <div class="row-btns" style="margin-top:10px"><button class="btn primary" data-act="simSave">Save</button></div>
+    <p class="label">Measured on the phone · ${st.count} photo${st.count===1?"":"s"}</p>
+    ${st.count ? `<div class="tiles" style="margin-bottom:6px">
+        <div class="tstat"><span class="hd">Average</span><b>${(st.avgMs/1000).toFixed(2)} s</b></div>
+        <div class="tstat"><span class="hd">Fastest / slowest</span><b style="font-size:1.1rem">${(st.minMs/1000).toFixed(2)} / ${(st.maxMs/1000).toFixed(2)} s</b></div>
+        <div class="tstat"><span class="hd">OK / NG</span><b style="font-size:1.1rem"><span style="color:var(--ok)">${st.ok}</span> / <span style="color:var(--bad)">${st.ng}</span></b></div></div>
+      <div class="meta">Last ${st.recent.length} photos (newest on the right)</div>
+      <div class="bars">${st.recent.slice().reverse().map(r=>`<i title="${(r.ms/1000).toFixed(2)} s · ${r.verdict}" style="height:${Math.max(4,r.ms/maxMs*100)}%;background:${r.verdict==="NG"?"var(--bad)":"var(--ok)"}"></i>`).join("")}</div>
+      <p class="meta" style="margin-bottom:0">This is processing time on the phone. The Zebra also shows the total time including sending the photo.</p>`
+      : `<div class="meta">No processed photos yet. Turn simulation on and take a few photos on the Zebra.</div>`}
+    <div class="row-btns" style="margin-top:10px"><button class="btn soft" data-act="simRefresh">Refresh numbers</button></div>
+  </div>`;
+}
+function loadLaptop(){ S.lap = S.lap || {}; S.lap.data = nat("variants"); S.lap.photos = S.lap.photos || {}; try{ S.lap.sim = nat("getSim"); }catch(e){} }
 
 function variantStatus(){
   // complete / partial vehicles per variant, all time
@@ -1188,8 +1247,28 @@ window.onPhoto = function(raw){
   const go = nxt || {cp:{id:r.checkpoint}};
   document.getElementById("cp-"+go.cp.id)?.scrollIntoView({block:"center"});
 };
+// ---------- full screen toggle (Zebra) ----------
+function isFs(){ return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+function fsUpdate(){
+  const b=document.getElementById("fsBtn"); if(!b) return;
+  const zebra = !["role","laptop"].includes(S.screen) && !(S.settingsFrom==="laptop") && !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);
+  b.hidden=!zebra;
+  b.classList.toggle("raised", S.screen==="vehicle");
+  b.innerHTML=ic(isFs()?"shrink":"expand");
+  b.setAttribute("aria-label", isFs()?"Exit full screen":"Full screen");
+}
+async function fsToggle(){
+  try{
+    if(isFs()) await (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    else await (document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen).call(document.documentElement, {navigationUI:"hide"});
+  }catch(e){ toast("Full screen isn't allowed in this browser"); }
+  fsUpdate();
+}
+document.addEventListener("fullscreenchange", fsUpdate);
+document.addEventListener("webkitfullscreenchange", fsUpdate);
+
 // ---------- built-in camera (needs https; falls back to the phone's camera app on plain http) ----------
-const CAM = {stream:null, track:null, ic:null, ctx:null, blob:null, url:null, pending:0, busy:false};
+const CAM = {stream:null, track:null, ic:null, ctx:null, blob:null, url:null, pending:0, busy:false, last:null, retakeOf:null};
 const $c = id => document.getElementById(id);
 function camSupported(){ return !!(window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia); }
 
@@ -1241,7 +1320,17 @@ function camLabel(){
   $c("camNext").querySelector(".c").innerHTML = ic(nx ? "next" : "check");
 }
 function camQueue(){ const q=$c("camQ"); q.hidden=!CAM.pending; q.textContent=`Saving ${CAM.pending}`; }
+function camShowVerdict(r, totalMs){
+  const v=$c("camVerdict");
+  if(!r || r.error){ v.className="verdict ng"; v.innerHTML=`Not saved<small>${esc(r && r.error || "no answer from hub")}</small>`; return; }
+  const res=r.result;
+  if(!res || !res.verdict){ v.className="verdict ok"; v.innerHTML=`Saved<small>${(totalMs/1000).toFixed(1)} s</small>`; setTimeout(()=>{ if(v.textContent.startsWith("Saved")) v.hidden=true; }, 1200); return; }
+  v.className="verdict "+(res.verdict==="NG"?"ng":"ok");
+  v.innerHTML=`${res.verdict}<small>processing ${(res.ms/1000).toFixed(2)} s · total ${(totalMs/1000).toFixed(2)} s</small>`;
+  buzz(res.verdict==="NG"?[80,50,80]:40);
+}
 function camLive(){
+  $c("camVerdict").hidden=true;
   $c("camShot").hidden=true; $c("camVideo").hidden=false;
   $c("camLive").hidden=false; $c("camReview").hidden=true; $c("camShutter").disabled=false;
 }
@@ -1268,6 +1357,19 @@ async function camShoot(){
   $c("camLive").hidden=true; $c("camReview").hidden=false;
   CAM.busy=false;
   buzz(30);
+  // send it now so the result (OK / NG) shows on this photo
+  const ctx={...CAM.ctx}, t0=performance.now(), prev=CAM.retakeOf;
+  CAM.retakeOf=null;
+  const v=$c("camVerdict"); v.className="verdict wait"; v.textContent="Processing…"; v.hidden=false;
+  const shot = {ctx, done:false, path:null};
+  shot.promise = (async () => {
+    if(prev){ const p=await prev.promise; if(p) ctx.replace=p; }
+    const r = await camUpload(blob, ctx);
+    shot.done=true; shot.path=r && r.path || null;
+    if(CAM.last===shot && !$c("camReview").hidden) camShowVerdict(r, performance.now()-t0);
+    return shot.path;
+  })();
+  CAM.last=shot;
 }
 
 // If the photo came out sideways compared to how the Zebra is held, turn it upright (only then is it re-encoded).
@@ -1284,7 +1386,7 @@ async function camUpright(blob){
   }catch(e){ return blob; }
 }
 
-function camUpload(blob, ctx){
+function camUpload(blob, ctx){ return new Promise(resolve => {
   const ext = blob.type==="image/png" ? "png" : "jpg";
   const fd=new FormData();
   fd.append("variant", S.variant); fd.append("section", ctx.section); fd.append("checkpoint", ctx.cp);
@@ -1293,23 +1395,28 @@ function camUpload(blob, ctx){
   CAM.pending++; camQueue();
   const x=new XMLHttpRequest(); x.open("POST","/api/upload");
   x.onload=()=>{ CAM.pending--; camQueue(); let r; try{ r=JSON.parse(x.responseText); }catch(e){ r={error:"Hub error "+x.status}; }
-    if(r.error){ toast("Not saved: "+r.error); buzz([80,50,80]); } else { S.lastOnDisk[S.variant]=Math.max(S.lastOnDisk[S.variant]||0, S.vehicle); if($c("cam").hidden){ try{ loadProgress(); render(); }catch(e){} } } };
-  x.onerror=()=>{ CAM.pending--; camQueue(); toast("Photo not sent: is the Zebra still on the hotspot?"); buzz([80,50,80]); };
+    if(r.error){ toast("Not saved: "+r.error); buzz([80,50,80]); } else { S.lastOnDisk[S.variant]=Math.max(S.lastOnDisk[S.variant]||0, S.vehicle); if($c("cam").hidden){ try{ loadProgress(); render(); }catch(e){} } }
+    resolve(r); };
+  x.onerror=()=>{ CAM.pending--; camQueue(); toast("Photo not sent: is the Zebra still on the hotspot?"); buzz([80,50,80]); resolve({error:"not sent"}); };
   x.send(fd);
-}
+}); }
 
-function camAccept(){
+function camAccept(){     // the photo is already sent; keep it
   if(!CAM.blob) return null;
-  const ctx={...CAM.ctx}; camUpload(CAM.blob, ctx);
-  URL.revokeObjectURL(CAM.url); CAM.url=null; CAM.blob=null;
+  const ctx={...CAM.ctx};
+  URL.revokeObjectURL(CAM.url); CAM.url=null; CAM.blob=null; CAM.retakeOf=null;
   return ctx;
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  $c("fsBtn").onclick=fsToggle; fsUpdate();
   $c("camClose").innerHTML=ic("x"); $c("camRetake").querySelector(".c").innerHTML=ic("retake"); $c("camOk").querySelector(".c").innerHTML=ic("check");
   $c("camClose").onclick=()=>{ if(CAM.blob && !confirmLeave()) return; camClose(); };
   $c("camShutter").onclick=camShoot;
-  $c("camRetake").onclick=()=>{ if(CAM.url) URL.revokeObjectURL(CAM.url); CAM.url=null; CAM.blob=null; camLive(); };
+  $c("camRetake").onclick=()=>{   // the next shot replaces the one just sent
+    if(CAM.url) URL.revokeObjectURL(CAM.url); CAM.url=null; CAM.blob=null;
+    CAM.retakeOf=CAM.last; camLive();
+  };
   $c("camOk").onclick=()=>{ camAccept(); camClose(); };
   $c("camNext").onclick=()=>{
     const ctx=camAccept(); if(!ctx) return;
@@ -1387,6 +1494,13 @@ $app.addEventListener("click", e => {
       try{ localStorage.setItem("mv-role", b.dataset.r); }catch(err){}
       if(b.dataset.r==="laptop"){ loadLaptop(); S.screen="laptop"; } else { S.screen="launch"; }
       render(); window.scrollTo(0,0);
+    }
+    else if(a==="lapSim"){ S.lap.simOpen=!S.lap.simOpen; if(S.lap.simOpen){ S.lap.sim=nat("getSim"); S.lap.stats=nat("procStats"); } render(); }
+    else if(a==="simRefresh"){ S.lap.stats=nat("procStats"); render(); }
+    else if(a==="simSave"){
+      const sim={enabled:document.getElementById("simOn").checked, delayMs:+document.getElementById("simDelay").value, ngRate:+document.getElementById("simNg").value};
+      S.lap.sim=nat("putSim", JSON.stringify(sim)); render();
+      toast(sim.enabled ? `Simulation on · ${(sim.delayMs/1000).toFixed(1)} s per photo` : "Simulation off");
     }
     else if(a==="lapSettings"){ S.settingsFrom="laptop"; S.screen="global"; S.confirm=null; render(); window.scrollTo(0,0); }
     else if(a==="globalBack"){
@@ -1493,6 +1607,10 @@ $app.addEventListener("click", e => {
   }
 });
 
+$app.addEventListener("input", e => {
+  if(e.target.id==="simDelay") document.getElementById("simDelayV").textContent=(e.target.value/1000).toFixed(1)+" s";
+  if(e.target.id==="simNg") document.getElementById("simNgV").textContent=e.target.value+"%";
+});
 $app.addEventListener("change", e => {
   const id=e.target.id;
   if(id==="sheetColor" && S.sheet){

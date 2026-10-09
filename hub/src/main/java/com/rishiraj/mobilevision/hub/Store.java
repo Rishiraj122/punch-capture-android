@@ -484,6 +484,65 @@ public class Store {
         return o;
     }
 
+    // ------------------------------------------------------------ processing (simulation now, trained model later)
+    /** Settings set from the laptop page: {enabled, delayMs, ngRate}. */
+    public JSONObject sim() throws Exception {
+        JSONObject o = readJson(f("simulation.json"));
+        if (!o.has("enabled")) o.put("enabled", false);
+        if (!o.has("delayMs")) o.put("delayMs", 1000);
+        if (!o.has("ngRate")) o.put("ngRate", 10);
+        return o;
+    }
+
+    public JSONObject putSim(String js) throws Exception {
+        JSONObject in = new JSONObject(js), o = new JSONObject();
+        o.put("enabled", in.optBoolean("enabled", false));
+        o.put("delayMs", Math.max(0, Math.min(10000, in.optInt("delayMs", 1000))));
+        o.put("ngRate", Math.max(0, Math.min(100, in.optInt("ngRate", 10))));
+        writeJson(f("simulation.json"), o);
+        return o;
+    }
+
+    final java.util.Random rnd = new java.util.Random();
+
+    /**
+     * Runs after a photo is saved, before the Zebra gets its answer.
+     * Today: simulation (wait delayMs, then OK or NG at ngRate %).
+     * Later: replace the simulated part with the trained model (e.g. a TFLite classifier) and keep the timing.
+     */
+    JSONObject process(File photo, String vid, String sec, String cid) throws Exception {
+        JSONObject cfg = sim();
+        if (!cfg.optBoolean("enabled")) return null;
+        long t0 = System.currentTimeMillis();
+        int delay = cfg.optInt("delayMs", 1000);
+        if (delay > 0) Thread.sleep(delay);
+        boolean ng = rnd.nextInt(100) < cfg.optInt("ngRate", 10);
+        return new JSONObject().put("verdict", ng ? "NG" : "OK").put("ms", System.currentTimeMillis() - t0)
+                .put("simulated", true).put("at", System.currentTimeMillis());
+    }
+
+    public JSONObject procStats() throws Exception {
+        List<JSONObject> rs = new ArrayList<>();
+        for (Iterator<String> it = results.keys(); it.hasNext(); ) {
+            JSONObject r = results.optJSONObject(it.next());
+            if (r != null && r.has("verdict")) rs.add(r);
+        }
+        Collections.sort(rs, (a, b) -> Long.compare(b.optLong("at"), a.optLong("at")));
+        long sum = 0, min = Long.MAX_VALUE, max = 0;
+        int ok = 0, ng = 0;
+        JSONArray recent = new JSONArray();
+        for (int i = 0; i < rs.size(); i++) {
+            JSONObject r = rs.get(i);
+            long ms = r.optLong("ms");
+            sum += ms; min = Math.min(min, ms); max = Math.max(max, ms);
+            if ("NG".equals(r.optString("verdict"))) ng++; else ok++;
+            if (i < 20) recent.put(new JSONObject().put("ms", ms).put("verdict", r.optString("verdict")).put("at", r.optLong("at")));
+        }
+        return new JSONObject().put("count", rs.size()).put("ok", ok).put("ng", ng)
+                .put("avgMs", rs.isEmpty() ? 0 : sum / rs.size()).put("minMs", rs.isEmpty() ? 0 : min).put("maxMs", max)
+                .put("recent", recent);
+    }
+
     // ------------------------------------------------------------ laptop view: variants and downloads
     public JSONObject variants() throws Exception {
         JSONObject cfg = loadConfig(), veh = vehicles();
@@ -777,6 +836,8 @@ public class Store {
             saveIndexes();
         }
         String rel = relOf(target);
+        JSONObject pr = process(target, vid, sec, cid);
+        if (pr != null) synchronized (lock) { results.put(rel, pr); writeJson(f("results.json"), results); }
         appendLog(now(), vid, String.format(Locale.US, "V%03d", vehicle), sec, cid, rel, old != null ? "retaken" : "saved", device);
         JSONObject o = photoJson(target);
         o.put("ok", true); o.put("replaced", old != null); o.put("variant", vid); o.put("section", sec);

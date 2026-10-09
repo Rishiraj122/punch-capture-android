@@ -123,6 +123,9 @@ public class HubServer extends NanoHTTPD {
             case "stats": return json(store.stats());
             case "syncStatus": return json(store.syncStatus());
             case "variants": return json(store.variants());
+            case "getSim": return json(store.sim());
+            case "putSim": return json(store.putSim(a.getString(0)));
+            case "procStats": return json(store.procStats());
             case "variantPhotos": return json(store.variantPhotos(a.getString(0), a.optInt(1, 0), a.optInt(2, 48)));
             case "listZips": return json(new JSONObject().put("zips", new JSONArray()));
             default: return json(err("Zips and folders are on the laptop when using the phone hub."));
