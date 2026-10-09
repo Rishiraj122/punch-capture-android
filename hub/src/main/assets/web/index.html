@@ -1342,19 +1342,61 @@ async function camStart(){
   ensureFs();
   clearTimeout(CAM.idle);
   $c("cam").hidden=false; camLive(); camLabel();
-  if(CAM.stream && CAM.track && CAM.track.readyState==="live"){ try{ $c("camVideo").play(); }catch(e){} return; }
-  $c("camMsg").hidden=false; $c("camMsg").textContent="Starting camera…";
-  try{
-    const stream = await navigator.mediaDevices.getUserMedia({audio:false, video:{facingMode:{ideal:"environment"}, width:{ideal:4096}, height:{ideal:3072}}});
-    CAM.stream=stream; CAM.track=stream.getVideoTracks()[0];
-    $c("camVideo").srcObject=stream;
-    try{ await CAM.track.applyConstraints({advanced:[{torch:false}]}); }catch(e){}
-    try{ await CAM.track.applyConstraints({advanced:[{focusMode:"continuous"}]}); }catch(e){}
-    CAM.ic = ("ImageCapture" in window) ? new ImageCapture(CAM.track) : null;
-    $c("camMsg").hidden=true;
-  }catch(e){
-    $c("camMsg").textContent = "Camera not available: allow camera access for this site (lock icon in the address bar), then try again.";
+  if(CAM.stream && CAM.track && CAM.track.readyState==="live" && !CAM.track.muted){
+    try{ await $c("camVideo").play(); }catch(e){}
+    if(await camShowing($c("camVideo"))) return;
   }
+  await camStream();
+}
+
+// Live preview at a normal size (big preview streams show black on many Zebras); photos still use full resolution via takePhoto().
+const CAM_TRIES = [
+  {facingMode:{ideal:"environment"}, width:{ideal:1920}, height:{ideal:1080}},
+  {facingMode:{ideal:"environment"}, width:{ideal:1280}, height:{ideal:720}},
+  {facingMode:"environment"},
+  true,
+];
+async function camStream(startAt){
+  if(CAM.starting) return;      // one restart at a time
+  CAM.starting=true;
+  try{ await camStreamInner(startAt); } finally { CAM.starting=false; }
+}
+async function camStreamInner(startAt){
+  const msg=$c("camMsg"), video=$c("camVideo");
+  msg.hidden=false; msg.textContent="Starting camera…";
+  camStop();
+  for(let i=startAt||0; i<CAM_TRIES.length; i++){
+    let stream;
+    try{ stream = await navigator.mediaDevices.getUserMedia({audio:false, video:CAM_TRIES[i]}); }
+    catch(e){
+      if(e && (e.name==="NotAllowedError" || e.name==="SecurityError")){ msg.textContent="Camera blocked: allow camera access for this site (lock icon in the address bar), then try again."; return; }
+      continue;
+    }
+    CAM.stream=stream; CAM.track=stream.getVideoTracks()[0]; CAM.try=i;
+    video.srcObject=stream; video.muted=true; video.setAttribute("playsinline",""); video.hidden=false;
+    try{ await video.play(); }catch(e){}
+    if(await camShowing(video)){
+      try{ await CAM.track.applyConstraints({advanced:[{torch:false}]}); }catch(e){}
+      try{ await CAM.track.applyConstraints({advanced:[{focusMode:"continuous"}]}); }catch(e){}
+      CAM.ic = ("ImageCapture" in window) ? new ImageCapture(CAM.track) : null;
+      msg.hidden=true;
+      return;
+    }
+    stream.getTracks().forEach(t=>t.stop()); CAM.stream=null; CAM.track=null;   // black preview: try simpler settings
+  }
+  msg.textContent="The camera preview didn't start. Close and open the camera again.";
+}
+// true once frames are actually arriving in the preview
+function camShowing(video){
+  return new Promise(res=>{
+    const t0=performance.now(), start=video.currentTime;
+    const tick=()=>{
+      if(video.videoWidth>0 && (video.currentTime>start || video.readyState>=3)) return res(true);
+      if(performance.now()-t0>2500) return res(false);
+      requestAnimationFrame(tick);
+    };
+    tick();
+  });
 }
 
 function camStop(){ if(CAM.stream){ CAM.stream.getTracks().forEach(t=>t.stop()); CAM.stream=null; CAM.track=null; CAM.ic=null; } }
@@ -1429,6 +1471,12 @@ function camShowVerdict(r, totalMs){
 function camLive(){
   $c("camVerdict").hidden=true; $c("camVinPanel").hidden=true;
   $c("camShot").hidden=true; $c("camVideo").hidden=false;
+  const v=$c("camVideo");
+  if(CAM.stream){
+    try{ v.play(); }catch(e){}
+    // some devices pause the preview after takePhoto(); restart it if frames stop
+    setTimeout(async()=>{ if(!CAM.starting && !$c("cam").hidden && !v.hidden && !(await camShowing(v))) camStream(CAM.try||0); }, 300);
+  }
   $c("camLive").hidden=false; $c("camReview").hidden=true; $c("camShutter").disabled=false;
 }
 

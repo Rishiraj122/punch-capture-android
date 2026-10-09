@@ -125,6 +125,8 @@ public class HubServer extends NanoHTTPD {
             case "variants": return json(store.variants());
             case "vehicleInfo": return json(store.vehicleInfo());
             case "clearPhotos": return json(store.clearPhotos(a.getString(0)));
+            case "clearCache": return json(store.clearCache());
+            case "usage": return json(store.usage());
             case "getSim": return json(store.sim());
             case "putSim": return json(store.putSim(a.getString(0)));
             case "procStats": return json(store.procStats());
@@ -311,18 +313,33 @@ public class HubServer extends NanoHTTPD {
             + "<div class=\"card\" id=\"st\"><div class=\"row\" hidden><span>Laptop</span><b id=\"lap\">…</b></div>"
             + "<div class=\"row\" hidden><span>Waiting to go to the laptop</span><b id=\"wait\">…</b></div>"
             + "<div class=\"row\"><span>Photos on this phone</span><b id=\"ph\">…</b></div>"
-            + "<div class=\"row\"><span>Free space</span><b id=\"free\">…</b></div></div>"
+            + "<div class=\"row\"><span>Cache (thumbnails)</span><b id=\"cache\">…</b></div>"
+            + "<div class=\"row\"><span>Free space</span><b id=\"free\">…</b></div>"
+            + "<div class=\"btns\" style=\"margin-top:10px\"><button class=\"btn soft\" onclick=\"clearCache()\">Clear cache</button>"
+            + "<button class=\"btn soft\" style=\"color:#d93a32\" onclick=\"askClear()\">Clear photos &amp; cache</button></div>"
+            + "<div id=\"conf\" hidden style=\"margin-top:10px;border:1px solid #d93a32;border-radius:12px;padding:12px\">"
+            + "<b>Delete every photo on this phone?</b><p class=\"m\" style=\"margin:4px 0 10px\">Download them on the laptop first if you still need them. Checkpoints, colors and settings are kept. This can't be undone.</p>"
+            + "<div class=\"btns\"><button class=\"btn\" style=\"background:#d93a32;color:#fff\" onclick=\"doClear()\">Delete all photos</button>"
+            + "<button class=\"btn soft\" onclick=\"document.getElementById('conf').hidden=true\">Cancel</button></div></div>"
+            + "<p class=\"m\" id=\"msg\" style=\"margin:8px 0 0\"></p></div>"
             + "<div class=\"btns\"><a class=\"btn pri\" href=\"/\">Open capture screen here</a><a class=\"btn soft\" href=\"/hub\">Refresh</a></div>"
             + "<div class=\"card\" style=\"margin-top:12px\"><b>Setup</b><ol class=\"m\"><li>Turn on this phone's <b>Hotspot</b> (mobile data can stay off).</li>"
             + "<li>Connect the <b>Zebra</b> and the <b>laptop</b> to the hotspot.</li><li>On the Zebra and the laptop, open the address above in the browser. The first time, the browser warns the connection is not private: tap <b>Advanced → Proceed</b>. On the Zebra, allow the <b>camera</b>.</li><li>Choose <b>Zebra</b> to capture, <b>Laptop</b> to download photos.</li>"
             + "<li>Allow this app to run in the background: Settings → Apps → MobileVision Hub → Battery → Unrestricted.</li></ol></div>"
             + "<div class=\"btns\"><button class=\"btn soft\" onclick=\"fetch('/hub/stop').then(()=>document.body.innerHTML='<main><h1>Hub stopped</h1><p>Open the app again to restart.</p></main>')\">Stop hub</button></div>"
             + "</main><script>"
+            + "async function rpc(n,a){return (await fetch('/api/rpc/'+n,{method:'POST',body:JSON.stringify({args:a||[]})})).json();}"
+            + "function say(t){document.getElementById('msg').textContent=t;}"
+            + "async function clearCache(){const r=await rpc('clearCache');try{HubApp.clearWebCache();}catch(e){}say('Cache cleared ('+r.freedMB+' MB).');usage();}"
+            + "function askClear(){document.getElementById('conf').hidden=false;}"
+            + "async function doClear(){const r=await rpc('clearPhotos',['all']);await rpc('clearCache');try{HubApp.clearWebCache();}catch(e){}"
+            + "document.getElementById('conf').hidden=true;say('Deleted '+r.removed+' photos and cleared the cache.');usage();tick();}"
+            + "async function usage(){try{const u=await rpc('usage');document.getElementById('ph').textContent=u.photos+' ('+u.photoMB+' MB)';"
+            + "document.getElementById('cache').textContent=u.cacheMB+' MB';document.getElementById('free').textContent=(u.freeMB/1024).toFixed(1)+' GB';}catch(e){}}usage();setInterval(usage,10000);"
             + "async function tick(){try{const s=await (await fetch('/api/rpc/syncStatus',{method:'POST',body:'{\"args\":[]}'})).json();"
             + "const on=s.laptopSeenMs>=0&&s.laptopSeenMs<20000;"
             + "document.getElementById('lap').innerHTML=`<span class=\"dot\" style=\"background:${on?'var(--ok)':'var(--warn)'}\"></span>`+(on?'Connected':(s.laptopSeenMs<0?'Not seen yet':'Last seen '+Math.round(s.laptopSeenMs/60000)+' min ago'));"
-            + "document.getElementById('wait').textContent=s.waiting;document.getElementById('ph').textContent=s.photos;"
-            + "document.getElementById('free').textContent=(s.freeMB/1024).toFixed(1)+' GB';}catch(e){}}tick();setInterval(tick,3000);"
+            + "document.getElementById('wait').textContent=s.waiting;}catch(e){}}tick();setInterval(tick,3000);"
             + "</script></body></html>";
     }
 }

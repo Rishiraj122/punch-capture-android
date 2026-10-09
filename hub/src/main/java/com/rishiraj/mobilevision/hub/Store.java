@@ -674,6 +674,33 @@ public class Store {
         return new JSONObject().put("ok", true).put("removed", removed);
     }
 
+    static long dirBytes(File d) {
+        long n = 0;
+        File[] list = d.listFiles();
+        if (list != null) for (File f : list) n += f.isDirectory() ? dirBytes(f) : f.length();
+        return n;
+    }
+
+    /** Removes thumbnails/previews (rebuilt on demand). Photos are not touched. */
+    public JSONObject clearCache() throws Exception {
+        long before = dirBytes(cache) + dirBytes(ctx.getCacheDir());
+        synchronized (lock) {
+            File[] list = ctx.getCacheDir().listFiles();
+            if (list != null) for (File f : list) { if (f.isDirectory()) deleteTree(f); else f.delete(); }
+            cache.mkdirs();
+        }
+        return new JSONObject().put("ok", true).put("freedMB", before / (1024 * 1024));
+    }
+
+    public JSONObject usage() throws Exception {
+        List<File> ps = walkPhotos(root);
+        long bytes = 0;
+        for (File p : ps) bytes += p.length();
+        return new JSONObject().put("photos", ps.size()).put("photoMB", bytes / (1024 * 1024))
+                .put("cacheMB", (dirBytes(ctx.getCacheDir())) / (1024 * 1024))
+                .put("freeMB", root.getUsableSpace() / (1024 * 1024));
+    }
+
     // ------------------------------------------------------------ laptop view: variants and downloads
     public JSONObject variants() throws Exception {
         JSONObject cfg = loadConfig(), veh = vehicles();

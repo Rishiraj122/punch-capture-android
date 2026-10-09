@@ -29,6 +29,10 @@ public class HubActivity extends Activity {
         web = new WebView(this);
         web.getSettings().setJavaScriptEnabled(true);
         web.getSettings().setDomStorageEnabled(true);
+        web.addJavascriptInterface(new Object() {
+            @android.webkit.JavascriptInterface
+            public void clearWebCache() { h.post(() -> { web.clearCache(true); android.webkit.WebStorage.getInstance().deleteAllData(); }); }
+        }, "HubApp");
         web.setWebViewClient(new WebViewClient() {
             @Override
             public void onReceivedError(WebView v, WebResourceRequest req, WebResourceError err) {
