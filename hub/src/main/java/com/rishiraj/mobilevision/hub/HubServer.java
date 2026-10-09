@@ -73,6 +73,7 @@ public class HubServer extends NanoHTTPD {
             if (uri.startsWith("/thumb/")) return image(uri.substring(7), 240);
             if (uri.startsWith("/preview/")) return image(uri.substring(9), 1280);
             if (uri.startsWith("/sync/")) return sync(uri.substring(6), session);
+            if (uri.startsWith("/download/") && uri.endsWith(".zip")) return download(uri.substring(10, uri.length() - 4));
             if (uri.equals("/hub") || uri.equals("/hub/")) return html(hubPage());
             if (uri.equals("/hub/stop")) {
                 new Handler(Looper.getMainLooper()).postDelayed(() -> ctx.stopService(new Intent(ctx, HubService.class)), 300);
@@ -103,6 +104,8 @@ public class HubServer extends NanoHTTPD {
             case "browse": return json(store.browse(a.optString(0, "")));
             case "stats": return json(store.stats());
             case "syncStatus": return json(store.syncStatus());
+            case "variants": return json(store.variants());
+            case "variantPhotos": return json(store.variantPhotos(a.getString(0), a.optInt(1, 0), a.optInt(2, 48)));
             case "listZips": return json(new JSONObject().put("zips", new JSONArray()));
             default: return json(err("Zips and folders are on the laptop when using the phone hub."));
         }
@@ -124,6 +127,27 @@ public class HubServer extends NanoHTTPD {
         File t = store.thumbFile(p, size);
         Response r = newFixedLengthResponse(Response.Status.OK, "image/jpeg", new FileInputStream(t), t.length());
         r.addHeader("Cache-Control", "max-age=86400");
+        return r;
+    }
+
+    // ------------------------------------------------------------ laptop downloads (browser)
+    Response download(String name) throws Exception {
+        final String vid = "all".equals(name) ? null : name;
+        if (vid != null) {
+            File d = store.underRoot(vid);
+            if (!d.isDirectory() || vid.contains("/")) return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "not found");
+        }
+        final java.io.PipedInputStream in = new java.io.PipedInputStream(256 * 1024);
+        final java.io.PipedOutputStream out = new java.io.PipedOutputStream(in);
+        new Thread(() -> {
+            try { store.writeZip(vid, out); } catch (Exception ignored) { }
+            finally { try { out.close(); } catch (IOException ignored) { } }
+        }, "zip").start();
+        String file = (vid == null ? "PunchCapture_all" : vid) + "_" +
+                new java.text.SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(new java.util.Date()) + ".zip";
+        Response r = newChunkedResponse(Response.Status.OK, "application/zip", in);
+        r.addHeader("Content-Disposition", "attachment; filename=\"" + file + "\"");
+        r.addHeader("Cache-Control", "no-store");
         return r;
     }
 
@@ -259,14 +283,14 @@ public class HubServer extends NanoHTTPD {
             + ".pri{background:var(--p);color:#fff}.soft{background:var(--card);color:var(--fg);border:1px solid var(--line)}.warn{color:#9a5b00}"
             + "ol{margin:6px 0 0;padding-left:20px}li{margin:4px 0}.m{color:var(--muted);font-size:.88rem}</style></head><body><main>"
             + "<h1>MobileVision<em>.Ai</em> Hub</h1><p class=\"sub\">This phone connects the Zebra and the laptop. Keep it on and charging.</p>"
-            + "<div class=\"card\"><b>Open on the Zebra</b><p class=\"m\" style=\"margin:2px 0 6px\">Connect the Zebra to this phone's hotspot, then scan or type:</p>" + addr + "</div>"
-            + "<div class=\"card\" id=\"st\"><div class=\"row\"><span>Laptop</span><b id=\"lap\">…</b></div>"
-            + "<div class=\"row\"><span>Waiting to go to the laptop</span><b id=\"wait\">…</b></div>"
+            + "<div class=\"card\"><b>Open on the Zebra and the laptop</b><p class=\"m\" style=\"margin:2px 0 6px\">Connect them to this phone's hotspot, then scan or type in the browser:</p>" + addr + "</div>"
+            + "<div class=\"card\" id=\"st\"><div class=\"row\" hidden><span>Laptop</span><b id=\"lap\">…</b></div>"
+            + "<div class=\"row\" hidden><span>Waiting to go to the laptop</span><b id=\"wait\">…</b></div>"
             + "<div class=\"row\"><span>Photos on this phone</span><b id=\"ph\">…</b></div>"
             + "<div class=\"row\"><span>Free space</span><b id=\"free\">…</b></div></div>"
             + "<div class=\"btns\"><a class=\"btn pri\" href=\"/\">Open capture screen here</a><a class=\"btn soft\" href=\"/hub\">Refresh</a></div>"
             + "<div class=\"card\" style=\"margin-top:12px\"><b>Setup</b><ol class=\"m\"><li>Turn on this phone's <b>Hotspot</b> (mobile data can stay off).</li>"
-            + "<li>Connect the <b>Zebra</b> and the <b>laptop</b> to the hotspot.</li><li>On the laptop, start <b>run.bat</b>. It finds this phone by itself and copies every photo.</li>"
+            + "<li>Connect the <b>Zebra</b> and the <b>laptop</b> to the hotspot.</li><li>On the Zebra and the laptop, open the address above in the browser. Choose <b>Zebra</b> to capture, <b>Laptop</b> to download photos.</li>"
             + "<li>Allow this app to run in the background: Settings → Apps → MobileVision Hub → Battery → Unrestricted.</li></ol></div>"
             + "<div class=\"btns\"><button class=\"btn soft\" onclick=\"fetch('/hub/stop').then(()=>document.body.innerHTML='<main><h1>Hub stopped</h1><p>Open the app again to restart.</p></main>')\">Stop hub</button></div>"
             + "</main><script>"

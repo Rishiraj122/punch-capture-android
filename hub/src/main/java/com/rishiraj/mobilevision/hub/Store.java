@@ -34,6 +34,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 /**
  * Phone-hub storage. Same folder layout and rules as the laptop server (app.py):
@@ -43,7 +45,7 @@ import java.util.regex.Pattern;
  * Once the laptop confirms it has a photo, the phone keeps only a small copy (1280 px) to save space.
  */
 public class Store {
-    public static final String VERSION = "hub-1.0";
+    public static final String VERSION = "2.1 hub";
     static final String[] SECTIONS = {"interior", "exterior"};
     static final Pattern VEH_RE = Pattern.compile("_V(\\d{3,})_(\\d{2,})\\.[A-Za-z]+$");
     static final Pattern STAMP_RE = Pattern.compile("^(.+)_(\\d{8}_\\d{6}(?:_\\d+)?)\\.jpg$");
@@ -438,6 +440,132 @@ public class Store {
         } catch (Exception ignored) { }
     }
 
+    // ------------------------------------------------------------ quick quality check (same rules as the laptop's processing.py)
+    static final double BLUR_MIN_SHARPNESS = 60.0, DARK_MAX = 45.0, BRIGHT_MIN = 215.0;
+
+    static JSONObject quality(File f) {
+        JSONObject o = new JSONObject();
+        try {
+            long t0 = System.currentTimeMillis();
+            Bitmap bmp = decodeUpright(f, 800);
+            if (bmp == null) return o;
+            int w = bmp.getWidth(), h = bmp.getHeight();
+            int[] px = new int[w * h];
+            bmp.getPixels(px, 0, w, 0, 0, w, h);
+            bmp.recycle();
+            float[] g = new float[w * h];
+            double sum = 0;
+            for (int i = 0; i < px.length; i++) {
+                int c = px[i];
+                float v = 0.299f * ((c >> 16) & 255) + 0.587f * ((c >> 8) & 255) + 0.114f * (c & 255);
+                g[i] = v;
+                sum += v;
+            }
+            double mean = sum / g.length, ls = 0, ls2 = 0;
+            long n = 0;
+            for (int y = 1; y < h - 1; y++)
+                for (int x = 1; x < w - 1; x++) {
+                    int i = y * w + x;
+                    double l = 4 * g[i] - g[i - 1] - g[i + 1] - g[i - w] - g[i + w];
+                    ls += l; ls2 += l * l; n++;
+                }
+            double var = n > 0 ? ls2 / n - (ls / n) * (ls / n) : 0;
+            JSONArray checks = new JSONArray();
+            if (var < BLUR_MIN_SHARPNESS) checks.put("Looks blurry");
+            if (mean < DARK_MAX) checks.put("Too dark");
+            else if (mean > BRIGHT_MIN) checks.put("Too bright");
+            o.put("sharpness", Math.round(var * 10) / 10.0);
+            o.put("brightness", Math.round(mean * 10) / 10.0);
+            o.put("checks", checks);
+            o.put("status", checks.length() > 0 ? "warn" : "ok");
+            o.put("ms", System.currentTimeMillis() - t0);
+            o.put("by", "phone");
+        } catch (Throwable ignored) { }
+        return o;
+    }
+
+    // ------------------------------------------------------------ laptop view: variants and downloads
+    public JSONObject variants() throws Exception {
+        JSONObject cfg = loadConfig(), veh = vehicles();
+        Map<String, String> names = new HashMap<>();
+        List<String> order = new ArrayList<>();
+        JSONArray cv = cfg.getJSONArray("variants");
+        for (int i = 0; i < cv.length(); i++) {
+            names.put(cv.getJSONObject(i).getString("id"), cv.getJSONObject(i).getString("name"));
+            order.add(cv.getJSONObject(i).getString("id"));
+        }
+        File[] dirs = root.listFiles();
+        if (dirs != null) for (File d : dirs) if (d.isDirectory() && !order.contains(d.getName())) order.add(d.getName());
+        JSONArray out = new JSONArray();
+        long totalBytes = 0;
+        int totalPhotos = 0;
+        for (String id : order) {
+            List<File> ps = walkPhotos(new File(root, id));
+            long bytes = 0, latest = 0;
+            Set<Integer> vs = new HashSet<>();
+            Set<String> colors = new HashSet<>();
+            for (File p : ps) {
+                bytes += p.length();
+                latest = Math.max(latest, p.lastModified());
+                int n = vehicleOf(p);
+                if (n > 0) vs.add(n);
+                colors.add(p.getParentFile().getParentFile().getParentFile().getName().replace('_', ' '));
+            }
+            JSONArray cl = new JSONArray();
+            List<String> cs = new ArrayList<>(colors);
+            Collections.sort(cs);
+            for (String c : cs) cl.put(c);
+            out.put(new JSONObject().put("id", id).put("name", names.containsKey(id) ? names.get(id) : id)
+                    .put("photos", ps.size()).put("bytes", bytes).put("vehicles", vs.size())
+                    .put("colors", cl).put("latest", latest));
+            totalBytes += bytes;
+            totalPhotos += ps.size();
+        }
+        return new JSONObject().put("variants", out).put("photos", totalPhotos).put("bytes", totalBytes)
+                .put("freeMB", root.getUsableSpace() / (1024 * 1024));
+    }
+
+    /** Newest first. */
+    public JSONObject variantPhotos(String vid, int offset, int limit) throws Exception {
+        File d = underRoot(vid);
+        List<File> ps = walkPhotos(d);
+        Collections.sort(ps, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
+        JSONArray out = new JSONArray();
+        for (int i = offset; i < Math.min(ps.size(), offset + limit); i++) {
+            File p = ps.get(i);
+            JSONObject j = photoJson(p);
+            File cdir = p.getParentFile();
+            j.put("time", p.lastModified()).put("vehicle", vehicleOf(p))
+             .put("checkpoint", cidFromFolder(cdir.getName(), vid)).put("section", cdir.getParentFile().getName())
+             .put("color", cdir.getParentFile().getParentFile().getName().replace('_', ' '));
+            out.put(j);
+        }
+        return new JSONObject().put("photos", out).put("total", ps.size());
+    }
+
+    /** Streams a zip of one variant folder (or everything when vid is null), keeping the folder layout. */
+    public void writeZip(String vid, OutputStream os) throws IOException {
+        File base = vid == null ? root : underRoot(vid);
+        ZipOutputStream z = new ZipOutputStream(os);
+        z.setLevel(java.util.zip.Deflater.NO_COMPRESSION);   // photos are already compressed
+        for (File p : walkPhotos(base)) {
+            ZipEntry e = new ZipEntry("PunchCapture/" + relOf(p));
+            e.setTime(p.lastModified());
+            z.putNextEntry(e);
+            try (InputStream in = new FileInputStream(p)) { copy(in, z); }
+            z.closeEntry();
+        }
+        for (String extra : new String[]{"capture_log.csv", "vehicles.csv", "config.json", "photo_index.json", "results.json"}) {
+            File f = f(extra);
+            if (!f.exists()) continue;
+            z.putNextEntry(new ZipEntry("PunchCapture/" + extra));
+            try (InputStream in = new FileInputStream(f)) { copy(in, z); }
+            z.closeEntry();
+        }
+        z.finish();
+        z.flush();
+    }
+
     // ------------------------------------------------------------ actions used by the capture screens
     public JSONObject storage() throws Exception {
         JSONObject o = new JSONObject();
@@ -606,6 +734,8 @@ public class Store {
             saveIndexes();
         }
         String rel = relOf(target);
+        JSONObject q = quality(target);
+        if (q.length() > 0) synchronized (lock) { results.put(rel, q); writeJson(f("results.json"), results); }
         appendLog(now(), vid, String.format(Locale.US, "V%03d", vehicle), sec, cid, rel, old != null ? "retaken" : "saved", device);
         JSONObject o = photoJson(target);
         o.put("ok", true); o.put("replaced", old != null); o.put("variant", vid); o.put("section", sec);
@@ -669,8 +799,8 @@ public class Store {
             writeJson(f("sync_state.json"), state);
             writeJson(f("synced.json"), synced);
         }
-        for (File p : toSlim) slim(p);
-        return new JSONObject().put("ok", true).put("slimmed", toSlim.size());
+        // Full-size photos stay on the phone: the laptop downloads them from the browser.
+        return new JSONObject().put("ok", true).put("slimmed", 0);
     }
 
     public JSONObject meta() throws Exception {

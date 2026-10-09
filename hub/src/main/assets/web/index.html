@@ -61,6 +61,26 @@ header.top h1{font-size:1.28rem;margin:0;flex:1;min-width:0;white-space:nowrap;o
 .label.blue{color:var(--primary)}
 .meta{font-size:.86rem;color:var(--muted)}
 .err{color:var(--bad);font-size:.9rem}
+.wrap.wide{max-width:1040px}
+.roles{display:grid;grid-template-columns:1fr;gap:14px}
+@media (min-width:640px){.roles{grid-template-columns:1fr 1fr}}
+.role{display:flex;flex-direction:column;align-items:flex-start;gap:10px;text-align:left;background:var(--card);border:1px solid var(--line);
+  border-radius:20px;padding:20px;box-shadow:var(--shadow);min-height:170px}
+.role .ico{width:56px;height:56px;border-radius:16px;background:var(--primary-soft);color:var(--primary);display:grid;place-items:center}
+.role .ico svg{width:30px;height:30px}
+.role h2{margin:0;font-size:1.35rem}
+.role.last{border-color:var(--primary)}
+.vlist{display:grid;grid-template-columns:1fr;gap:14px;align-items:start}
+@media (min-width:900px){.vlist{grid-template-columns:1fr 1fr}}
+.vrowc{display:grid;grid-template-columns:120px 1fr;gap:14px;align-items:center}
+.vrowc .car{height:80px}
+.vacts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.vacts .btn{flex:1;min-width:150px;text-decoration:none}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px;margin-top:12px}
+.pgrid .tile{aspect-ratio:1}
+.pgrid .tile img{opacity:1}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.chip{font-size:.78rem;border:1px solid var(--line);border-radius:999px;padding:3px 9px;color:var(--muted);display:inline-flex;align-items:center;gap:5px}
 .empty{color:var(--muted);padding:14px;font-size:.92rem}
 .mono{font-family:var(--f-num);font-size:.78rem;color:var(--muted);word-break:break-all}
 input[type=text],input[type=date],input[type=time],select{width:100%;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--card);min-height:48px}
@@ -284,6 +304,8 @@ const ICONS = {
   chart:'<path d="M3 3v18h18M7 16v-4M12 16V8M17 16v-7"/>', lock:'<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   up:'<path d="M12 19V5M5 12l7-7 7 7"/>', down:'<path d="M12 5v14M19 12l-7 7-7-7"/>', next:'<path d="M5 12h14M13 5l7 7-7 7"/>',
   dots:'<circle cx="12" cy="5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="12" cy="19" r="1.2"/>',
+  laptop:'<rect x="4" y="4" width="16" height="11" rx="1.5"/><path d="M2 19h20"/>',
+  phone:'<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>',
   zip:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 11v6M10 14l2 3 2-3"/>',
 };
 const ic = (n, cls="") => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n]}</svg>`;
@@ -417,18 +439,21 @@ function pendingCount(){
 // ---------- processing results (done on the laptop) ----------
 const HUB = () => !!(S.storage && S.storage.hub);
 function qBadge(r, ph){
-  if(ph && HUB() && ph.synced===false && !(r && r.status)) return `<span class="qb wait" title="Not on the laptop yet">⟳</span>`;
   if(!r || !r.status) return "";
   return r.status==="warn" ? `<span class="qb" title="${esc((r.checks||[]).join(", "))}">!</span>` : "";
 }
 function resultHTML(r){
-  if(!r) return HUB() ? `<div class="result"><b style="color:#97a3b4">Waiting for the laptop to check this photo</b></div>` : "";
+  if(!r) return "";
   const ok = r.status!=="warn";
   const extra = r.detections ? `<span>Detected: ${esc(r.detections.join(", ")||"nothing")}</span>` : "";
   return `<div class="result ${ok?"ok":"warn"}"><b>${ok ? "Checks passed" : esc((r.checks||[]).join(" · "))}</b>${extra}
     <span class="nums">sharpness ${r.sharpness ?? "–"} · brightness ${r.brightness ?? "–"}</span></div>`;
 }
 
+function hubCard(){
+  return `<div class="synccard"><span class="ico" style="background:var(--ok)">${ic("phone")}</span>
+    <span style="flex:1"><b>Saved on the phone hub</b><span class="meta">Download on the laptop: open this same address and choose Laptop</span></span></div>`;
+}
 function syncCard(){
   let st=null; try{ st=nat("syncStatus"); }catch(e){}
   const on = st && st.laptopSeenMs>=0 && st.laptopSeenMs<20000;
@@ -442,7 +467,8 @@ function syncCard(){
 // ---------- render ----------
 function render(){
   if(S.storage && !S.storage.granted) return renderPermission();
-  ({launch:renderLaunch, home:renderHome, vehicle:renderVehicle, setup:renderSetup, global:renderGlobal, zip:renderZip,
+  document.getElementById("app").classList.toggle("wide", S.screen==="laptop" || S.screen==="role");
+  ({role:renderRole, laptop:renderLaptop, launch:renderLaunch, home:renderHome, vehicle:renderVehicle, setup:renderSetup, global:renderGlobal, zip:renderZip,
     browse:renderBrowse, stats:renderStats})[S.screen]();
   if(S.sheet) $app.insertAdjacentHTML("beforeend", sheetHTML());
   if(S.menu) $app.insertAdjacentHTML("beforeend", menuHTML());
@@ -481,8 +507,62 @@ function renderLaunch(){
         <div><h2>Safari</h2><span class="soon">${ic("lock","sm")}Coming soon</span></div><span></span>
       </button>
     </div>
-    <p class="meta" style="margin-top:24px">v${esc(S.storage ? S.storage.version : "")} · ${HUB() ? "connected through the phone hub" : "photos are saved and processed on the laptop server"}</p>`;
+    <p class="meta" style="margin-top:24px">v${esc(S.storage ? S.storage.version : "")} · ${HUB() ? "connected through the phone hub" : "photos are saved and processed on the laptop server"}</p>
+    ${HUB() ? `<button class="btn ghost" data-act="toRole" style="margin-top:4px">${ic("laptop","sm")}Switch device</button>` : ""}`;
 }
+
+function lastRole(){ try{ return localStorage.getItem("mv-role")||""; }catch(e){ return ""; } }
+function renderRole(){
+  const last = lastRole();
+  $app.innerHTML = `
+    <div class="launch-head"><p class="brand">MobileVision<em>.Ai</em></p><p class="subtitle">Which device is this?</p></div>
+    <div class="roles">
+      <button class="role ${last==="zebra"?"last":""}" data-act="pickRole" data-r="zebra">
+        <span class="ico">${ic("camera")}</span><h2>Zebra</h2>
+        <span class="meta">Capture checkpoint photos vehicle by vehicle.</span></button>
+      <button class="role ${last==="laptop"?"last":""}" data-act="pickRole" data-r="laptop">
+        <span class="ico">${ic("laptop")}</span><h2>Laptop</h2>
+        <span class="meta">See every variant's photos and download them as folders.</span></button>
+    </div>
+    <p class="meta" style="margin-top:20px">Connected to the phone hub · v${esc(S.storage ? S.storage.version : "")}</p>`;
+}
+
+function renderLaptop(){
+  const L=S.lap||{}, d=L.data||{variants:[]};
+  const cards = d.variants.map(v => {
+    const open = L.open===v.id, ph = (L.photos||{})[v.id];
+    return `<div class="card">
+      <div class="vrowc">${carTile(v.name)}
+        <div style="min-width:0"><div class="vname">${esc(v.name)}</div>
+          <div class="vsub">${v.photos} photo${v.photos===1?"":"s"} · ${v.vehicles} vehicle${v.vehicles===1?"":"s"} · ${mb(v.bytes)}</div>
+          ${v.latest ? `<div class="meta">Last photo ${fmtLong(v.latest)}</div>` : ""}
+          ${v.colors.length ? `<div class="chips">${v.colors.map(c=>`<span class="chip"><i class="swatch" style="width:10px;height:10px;background:${swatchColor(c)}"></i>${esc(c)}</span>`).join("")}</div>` : ""}
+        </div></div>
+      <div class="vacts">
+        ${v.photos ? `<a class="btn primary" href="/download/${encodeURIComponent(v.id)}.zip" download>${ic("down","sm")}Download folder</a>` : `<span class="btn soft" style="opacity:.6">No photos yet</span>`}
+        ${v.photos ? `<button class="btn soft" data-act="lapToggle" data-id="${v.id}">${ic(open?"up":"image","sm")}${open?"Hide photos":"Show photos"}</button>` : ""}
+      </div>
+      ${open && ph ? `<div class="pgrid">${ph.photos.map((p,i)=>`<button class="tile" data-act="lapView" data-id="${v.id}" data-i="${i}" title="${esc(p.name)}">
+          <img src="${esc(p.thumb)}" alt="">${qBadge(p.result)}<span class="tile-cap">${p.vehicle?"V"+pad3(p.vehicle)+" · ":""}${esc(p.checkpoint.replace(/_/g," "))}</span></button>`).join("")}</div>
+        ${ph.photos.length < ph.total ? `<button class="btn ghost block" style="margin-top:10px" data-act="lapMore" data-id="${v.id}">Show more (${ph.total-ph.photos.length} left)</button>` : ""}` : ""}
+    </div>`;
+  }).join("");
+  $app.innerHTML = `
+    <header class="top">
+      <div style="flex:1;min-width:0"><p class="brand" style="font-size:1.45rem">MobileVision<em>.Ai</em></p><p class="subtitle" style="font-size:.85rem">Laptop · photos on the phone hub</p></div>
+      <button class="btn soft" data-act="toRole" style="min-height:40px;padding:8px 12px">${ic("phone","sm")}Switch device</button>
+    </header>
+    <div class="card" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px">
+      <div style="flex:1;min-width:200px"><b style="font-size:1.1rem">${d.photos||0} photos · ${mb(d.bytes||0)}</b>
+        <div class="meta">${d.freeMB!=null ? `${(d.freeMB/1024).toFixed(1)} GB free on the phone · ` : ""}Folders keep Variant / Color / Interior-Exterior / Checkpoint</div></div>
+      ${d.photos ? `<a class="btn primary" href="/download/all.zip" download style="text-decoration:none">${ic("down","sm")}Download everything</a>` : ""}
+      <button class="btn soft" data-act="lapRefresh">${ic("next","sm")}Refresh</button>
+    </div>
+    <div class="vlist">${cards || `<div class="card empty">No variants yet.</div>`}</div>
+    <p class="meta" style="margin-top:16px">Downloads are zip files made on the phone while they download. Large folders take a while over the hotspot.</p>
+    ${S.viewer ? viewerHTML() : ""}`;
+}
+function loadLaptop(){ S.lap = S.lap || {}; S.lap.data = nat("variants"); S.lap.photos = S.lap.photos || {}; }
 
 function variantStatus(){
   // complete / partial vehicles per variant, all time
@@ -530,14 +610,14 @@ function renderHome(){
       <div class="car"><img src="img/accomplished.jpg" alt=""></div>
     </div>
     <div class="stack">${items || `<div class="card empty">No variants yet. Add one from ☰ → Settings.</div>`}</div>
-    ${HUB() ? syncCard() : ""}
+    ${HUB() ? hubCard() : ""}
     ${S.storage && S.storage.mirror ? "" : ""}
     <button class="zipcard" data-act="openZip" ${HUB() ? "hidden" : ""}>
       <span class="ico">${ic("zip")}</span>
       <span style="flex:1"><b>Zip photos</b><span class="meta">Pick a date and time range and download it</span></span>
       ${ic("chev")}
     </button>
-    <p class="meta" style="margin-top:16px">${HUB() ? "Photos go to the laptop through the phone hub" : `Saving on the laptop to <span class="mono">${esc(S.storage ? S.storage.root : "")}</span>`}</p>`;
+    <p class="meta" style="margin-top:16px">${HUB() ? "Photos are saved on the phone hub" : `Saving on the laptop to <span class="mono">${esc(S.storage ? S.storage.root : "")}</span>`}</p>`;
 }
 
 function renderVehicle(){
@@ -602,9 +682,9 @@ function viewerHTML(){
         <div class="row-btns"><button class="btn danger" data-act="delPhoto">Delete photo</button>
         <button class="btn ghost" data-act="cancelConfirm">Keep</button></div></div>`
       : `<div class="row-btns"><button class="btn ghost" data-act="closeViewer">${ic("x","sm")}Close</button>
-        ${ph.from==="browse" ? "" : `<button class="btn primary" data-act="retake">${ic("camera","sm")}Retake</button>`}
-        <button class="btn danger" data-act="askDelPhoto">Delete</button></div>
-        ${ph.from==="browse" ? "" : `<div class="name" style="opacity:.75">Retake takes a new photo and deletes this one.</div>`}`}
+        ${ph.from==="browse" || ph.from==="laptop" ? "" : `<button class="btn primary" data-act="retake">${ic("camera","sm")}Retake</button>`}
+        ${ph.from==="laptop" ? "" : `<button class="btn danger" data-act="askDelPhoto">Delete</button>`}</div>
+        ${ph.from ? "" : `<div class="name" style="opacity:.75">Retake takes a new photo and deletes this one.</div>`}`}
   </div>`;
 }
 
@@ -630,6 +710,7 @@ function menuHTML(){
     <button class="menu-item" data-act="openBrowse"><span class="ico">${ic("folder")}</span><span><b>Photos</b><span>Browse Variant → Color → Interior/Exterior → Checkpoint</span></span></button>
     <button class="menu-item" data-act="openStats"><span class="ico">${ic("chart")}</span><span><b>Dashboard</b><span>Vehicles per variant, colors, images per checkpoint</span></span></button>
     <button class="menu-item" data-act="openZip" ${HUB() ? "hidden" : ""}><span class="ico">${ic("zip")}</span><span><b>Zip photos</b><span>Export a date range from the laptop</span></span></button>
+    ${HUB() ? `<button class="menu-item" data-act="toRole"><span class="ico">${ic("laptop")}</span><span><b>Switch device</b><span>Use this screen as Zebra or Laptop</span></span></button>` : ""}
     <button class="menu-item" data-act="global"><span class="ico">${ic("gear")}</span><span><b>Settings</b><span>Colors, variants, common checkpoints</span></span></button>
   </div></div>`;
 }
@@ -973,6 +1054,8 @@ window.goBack = function(){
   if(S.screen==="browse" && S.browse.rel){ loadBrowse(S.browse.rel.split("/").slice(0,-1).join("/")); render(); return true; }
   if(S.screen==="stats" && S.stats.variant && !S.stats.fromHome){ S.stats.variant=null; render(); return true; }
   if(S.screen==="home"){ goLaunch(); return true; }
+  if(S.screen==="launch" && HUB()){ S.screen="role"; render(); return true; }
+  if(S.screen==="laptop"){ S.screen="role"; render(); return true; }
   if(S.screen!=="launch"){ goHome(); return true; }
   return false;
 };
@@ -991,8 +1074,7 @@ window.onPhoto = function(raw){
   if(r.cancelled){ render(); return; }
   const warn = r.result && r.result.status==="warn";
   buzz(warn ? [60,40,60] : 40);
-  toast(warn ? `Saved · ${r.result.checks.join(", ")} — tap the thumbnail to retake` : HUB() ? (r.replaced ? "Retaken · going to laptop" : "Saved · going to laptop") : (r.replaced ? "Retaken " : "Saved ") + r.name);
-  if(HUB()) setTimeout(()=>{ if(S.screen==="vehicle" && !S.viewer && !S.busy){ try{ loadProgress(); render(); }catch(e){} } }, 6000);
+  toast(warn ? `Saved · ${r.result.checks.join(", ")} — tap the thumbnail to retake` : (r.replaced ? "Retaken " : "Saved ") + r.name);
   S.lastOnDisk[r.variant] = Math.max(S.lastOnDisk[r.variant]||0, r.vehicle);
   loadProgress();
   const nxt=nextPending();
@@ -1032,6 +1114,28 @@ $app.addEventListener("click", e => {
     if(listAction(a, b.dataset.id)) return;
     if(a==="grant"){ Native.requestStorage(); }
     else if(a==="openPunch"){ goHome(); }
+    else if(a==="pickRole"){
+      try{ localStorage.setItem("mv-role", b.dataset.r); }catch(err){}
+      if(b.dataset.r==="laptop"){ loadLaptop(); S.screen="laptop"; } else { S.screen="launch"; }
+      render(); window.scrollTo(0,0);
+    }
+    else if(a==="toRole"){ S.menu=false; S.viewer=null; S.screen="role"; render(); window.scrollTo(0,0); }
+    else if(a==="lapRefresh"){ loadLaptop(); S.lap.photos={}; render(); toast("Updated"); }
+    else if(a==="lapToggle"){
+      const id=b.dataset.id;
+      if(S.lap.open===id){ S.lap.open=null; }
+      else { S.lap.open=id; S.lap.photos[id]=nat("variantPhotos", id, 0, 48); }
+      render();
+    }
+    else if(a==="lapMore"){
+      const id=b.dataset.id, cur=S.lap.photos[id], more=nat("variantPhotos", id, cur.photos.length, 48);
+      cur.photos=cur.photos.concat(more.photos); cur.total=more.total; render();
+    }
+    else if(a==="lapView"){
+      const list=S.lap.photos[b.dataset.id].photos, i=+b.dataset.i, ph=list[i];
+      S.viewer={path:ph.path, name:ph.name, url:nat("bigPreview", ph.path).url, index:i, total:list.length, from:"laptop", result:ph.result};
+      S.confirm=null; render();
+    }
     else if(a==="refreshHome"){ goHome(); }
     else if(a==="launch"){ goLaunch(); }
     else if(a==="home"){ goHome(); }
@@ -1148,6 +1252,7 @@ $app.addEventListener("keydown", e => {
   try{
     S.storage = nat("storage");
     if(S.storage.granted){ loadConfig(); loadLastVehicles(); }
+    if(S.storage.hub) S.screen="role";
     render();
     const waiting = window.Native.ready();
     if(waiting && waiting !== "null") window.onPhoto(waiting);
