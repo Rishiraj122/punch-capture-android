@@ -61,6 +61,23 @@ header.top h1{font-size:1.28rem;margin:0;flex:1;min-width:0;white-space:nowrap;o
 .label.blue{color:var(--primary)}
 .meta{font-size:.86rem;color:var(--muted)}
 .err{color:var(--bad);font-size:.9rem}
+.review{position:fixed;inset:0;background:#070b14;z-index:22;display:flex;flex-direction:column;color:#e8eef6;
+  padding:calc(env(safe-area-inset-top,0px) + 10px) 16px calc(env(safe-area-inset-bottom,0px) + 18px);gap:10px}
+.review .rv-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.review .rv-top b{font-size:1.1rem}
+.review .rv-top span{font:.85rem var(--f-num);color:#97a3b4}
+.review img{flex:1;min-height:0;width:100%;object-fit:contain;border-radius:12px;background:#000}
+.rv-status{border-radius:12px;padding:10px 12px;font-weight:600;font-size:.95rem;background:#151d2c;display:flex;align-items:center;gap:8px}
+.rv-status.ok{color:#38c172} .rv-status.warn{color:#f5a524;background:#2a2112} .rv-status.err{color:#ef5b52;background:#2e1513}
+.rv-btns{display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:12px;align-items:end}
+.rv-btn{border:0;background:none;color:#e8eef6;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:.82rem;font-weight:600}
+.rv-btn .c{width:62px;height:62px;border-radius:50%;display:grid;place-items:center;background:#1b2536;border:1px solid #334058}
+.rv-btn.ok .c{width:78px;height:78px;background:var(--ok);border-color:var(--ok);color:#fff}
+.rv-btn.next .c{background:var(--primary);border-color:var(--primary);color:#fff}
+.rv-btn svg{width:28px;height:28px}
+.rv-btn.ok svg{width:36px;height:36px}
+.rv-btn[disabled]{opacity:.4}
+.rv-btn small{color:#97a3b4;font-weight:500;max-width:110px;text-align:center;line-height:1.2}
 .wrap.wide{max-width:1040px}
 .roles{display:grid;grid-template-columns:1fr;gap:14px}
 @media (min-width:640px){.roles{grid-template-columns:1fr 1fr}}
@@ -304,6 +321,7 @@ const ICONS = {
   chart:'<path d="M3 3v18h18M7 16v-4M12 16V8M17 16v-7"/>', lock:'<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   up:'<path d="M12 19V5M5 12l7-7 7 7"/>', down:'<path d="M12 5v14M19 12l-7 7-7-7"/>', next:'<path d="M5 12h14M13 5l7 7-7 7"/>',
   dots:'<circle cx="12" cy="5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="12" cy="19" r="1.2"/>',
+  retake:'<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>',
   laptop:'<rect x="4" y="4" width="16" height="11" rx="1.5"/><path d="M2 19h20"/>',
   phone:'<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>',
   zip:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 11v6M10 14l2 3 2-3"/>',
@@ -467,7 +485,7 @@ function syncCard(){
 // ---------- render ----------
 function render(){
   if(S.storage && !S.storage.granted) return renderPermission();
-  document.getElementById("app").classList.toggle("wide", S.screen==="laptop" || S.screen==="role");
+  document.getElementById("app").classList.toggle("wide", S.screen==="laptop" || S.screen==="role" || (S.settingsFrom==="laptop" && (S.screen==="global" || S.screen==="setup")));
   ({role:renderRole, laptop:renderLaptop, launch:renderLaunch, home:renderHome, vehicle:renderVehicle, setup:renderSetup, global:renderGlobal, zip:renderZip,
     browse:renderBrowse, stats:renderStats})[S.screen]();
   if(S.sheet) $app.insertAdjacentHTML("beforeend", sheetHTML());
@@ -556,10 +574,11 @@ function renderLaptop(){
       <div style="flex:1;min-width:200px"><b style="font-size:1.1rem">${d.photos||0} photos · ${mb(d.bytes||0)}</b>
         <div class="meta">${d.freeMB!=null ? `${(d.freeMB/1024).toFixed(1)} GB free on the phone · ` : ""}Folders keep Variant / Color / Interior-Exterior / Checkpoint</div></div>
       ${d.photos ? `<a class="btn primary" href="/download/all.zip" download style="text-decoration:none">${ic("down","sm")}Download everything</a>` : ""}
+      <button class="btn soft" data-act="lapSettings">${ic("gear","sm")}Checkpoint sequence</button>
       <button class="btn soft" data-act="lapRefresh">${ic("next","sm")}Refresh</button>
     </div>
     <div class="vlist">${cards || `<div class="card empty">No variants yet.</div>`}</div>
-    <p class="meta" style="margin-top:16px">Downloads are zip files made on the phone while they download. Large folders take a while over the hotspot.</p>
+    <p class="meta" style="margin-top:16px">Each download is a folder named after the variant with files like <span class="mono">Punch_Pure_Calypso_Red_20261009_101512_exterior_orvm_left.jpg</span>, plus photos.csv (vehicle number, quality check). Zips are made on the phone while they download. Large folders take a while over the hotspot.</p>
     ${S.viewer ? viewerHTML() : ""}`;
 }
 function loadLaptop(){ S.lap = S.lap || {}; S.lap.data = nat("variants"); S.lap.photos = S.lap.photos || {}; }
@@ -664,12 +683,37 @@ function renderVehicle(){
     <ul class="cps">${list || `<li class="empty">No ${S.section} checkpoints for this variant. Add them with ⚙.</li>`}</ul>
     <p class="meta" style="margin:10px 2px 0">Tap a checkpoint to shoot. Tap a thumbnail to view, retake or delete.</p>
     ${S.viewer ? viewerHTML() : ""}
+    ${S.review ? reviewHTML() : ""}
     <div class="dock"><div class="dock-in">
       ${nxt ? `<button class="btn soft side" data-act="new" data-v="${v.id}" aria-label="Next vehicle">${ic("next")}Next car</button>
                <button class="btn primary main" data-act="shoot" data-s="${nxt.section}" data-c="${nxt.cp.id}">
                  ${ic("camera","lg")}<span style="flex:1;min-width:0"><b>Shoot next: ${esc(nxt.cp.name)}</b><small>${left} remaining</small></span>${ic("chev")}</button>`
             : `<button class="btn primary main" data-act="new" data-v="${v.id}">${ic("check","lg")}<span style="flex:1"><b>All done · Next vehicle</b><small>Start V${pad3(S.vehicle+1)} or later number</small></span>${ic("chev")}</button>`}
     </div></div>`;
+}
+
+function nextInSection(section, cid){
+  const list=V()[section], i=list.findIndex(c=>c.id===cid);
+  return i>=0 && i<list.length-1 ? list[i+1] : null;
+}
+function reviewHTML(){
+  const r=S.review, v=V(), cp=(v[r.section].find(c=>c.id===r.cp)||{name:r.cp});
+  const nx=nextInSection(r.section, r.cp), busy=r.uploading;
+  let st;
+  if(r.error) st=`<div class="rv-status err">${ic("x","sm")}${esc(r.error)}</div>`;
+  else if(busy) st=`<div class="rv-status">${ic("share","sm")}Saving…</div>`;
+  else if(r.result && r.result.status==="warn") st=`<div class="rv-status warn">! ${esc((r.result.checks||[]).join(" · "))} — consider retaking</div>`;
+  else st=`<div class="rv-status ok">${ic("check","sm")}Saved${r.result ? " · checks passed" : ""}</div>`;
+  return `<div class="review" role="dialog" aria-label="Review photo">
+    <div class="rv-top"><b>${esc(cp.name)}</b><span>${r.section} · V${pad3(r.vehicle)}</span></div>
+    <img src="${esc(r.url)}" alt="">
+    ${st}
+    <div class="rv-btns">
+      <button class="rv-btn" data-act="rvRetake" ${busy?"disabled":""}><span class="c">${ic("retake")}</span>Retake</button>
+      <button class="rv-btn ok" data-act="rvOk" ${busy||r.error?"disabled":""}><span class="c">${ic("check")}</span>Correct</button>
+      <button class="rv-btn next" data-act="rvNext" ${busy||r.error?"disabled":""}><span class="c">${ic(nx?"next":"check")}</span>${nx?"Next":"Done"}<small>${nx?esc(nx.name):(r.section==="interior"?"Interior done":"Exterior done")}</small></button>
+    </div>
+  </div>`;
 }
 
 function viewerHTML(){
@@ -734,7 +778,8 @@ function listBlock(title, arr, acts, addId, placeholder, extraFn){
 function renderGlobal(){
   const c=S.cfg;
   $app.innerHTML = `
-    <header class="top"><button class="ibtn" data-act="home" aria-label="Back">${ic("back")}</button><h1>Settings</h1></header>
+    <header class="top"><button class="ibtn" data-act="globalBack" aria-label="Back">${ic("back")}</button><h1>${S.settingsFrom==="laptop" ? "Checkpoint sequence" : "Settings"}</h1></header>
+    ${S.settingsFrom==="laptop" ? `<p class="meta" style="margin-top:0">The order here is the order the Zebra shoots in (Interior first to last, then Exterior). Use ↑ ↓ to change it; the Zebra picks it up on its next screen.</p>` : ""}
     <div class="err" id="err"></div>
     ${listBlock("Colors (all variants)", c.colors, "color", "add-color", "Add color, e.g. Tornado Blue", x=>`<div><i class="swatch" style="display:inline-block;background:${swatchColor(x.name)};width:12px;height:12px;vertical-align:-1px"></i></div>`)}
     <p class="label">Variants · ${c.variants.length}</p>
@@ -1046,6 +1091,7 @@ function setupBack(){
   else goHome();
 }
 window.goBack = function(){
+  if(S.review){ if(!S.review.uploading) closeReview(); return true; }
   if(S.menu){ S.menu=false; render(); return true; }
   if(S.sheet){ S.sheet=null; render(); return true; }
   if(S.viewer){ S.viewer=null; S.confirm=null; render(); return true; }
@@ -1056,6 +1102,7 @@ window.goBack = function(){
   if(S.screen==="home"){ goLaunch(); return true; }
   if(S.screen==="launch" && HUB()){ S.screen="role"; render(); return true; }
   if(S.screen==="laptop"){ S.screen="role"; render(); return true; }
+  if(S.screen==="global" && S.settingsFrom==="laptop"){ S.settingsFrom=null; loadLaptop(); S.screen="laptop"; render(); return true; }
   if(S.screen!=="launch"){ goHome(); return true; }
   return false;
 };
@@ -1064,9 +1111,25 @@ window.onNativeResume = function(){
   S.storage = nat("storage");
   if(S.storage.granted && !was){ loadConfig(); loadLastVehicles(); render(); }
 };
+window.onCaptured = function(url, p){
+  if(S.screen!=="vehicle" || S.variant!==p.variant || S.vehicle!==p.vehicle) return;
+  if(S.review && S.review.url) try{ URL.revokeObjectURL(S.review.url); }catch(e){}
+  S.review = {url, section:p.section, cp:p.checkpoint, vehicle:p.vehicle, uploading:true, result:null, path:null, error:null};
+  S.busy = null; render();
+};
 window.onPhoto = function(raw){
   const r = JSON.parse(raw);
   S.busy = null;
+  if(S.review && S.review.uploading){
+    const rv=S.review;
+    if(r.cancelled){ return; }
+    rv.uploading=false;
+    if(r.error){ rv.error=r.error; buzz([80,50,80]); render(); return; }
+    rv.path=r.path; rv.result=r.result||null;
+    buzz(r.result && r.result.status==="warn" ? [60,40,60] : 40);
+    try{ loadProgress(); }catch(e){}
+    render(); return;
+  }
   if(r.error){ buzz([80,50,80]); toast(r.error); if(S.screen==="vehicle") render(); return; }
   if(S.screen!=="vehicle" || S.variant!==r.variant || S.vehicle!==r.vehicle){
     loadConfig(); openVehicle(r.variant, r.vehicle);
@@ -1084,6 +1147,13 @@ window.onPhoto = function(raw){
   const go = nxt || {cp:{id:r.checkpoint}};
   document.getElementById("cp-"+go.cp.id)?.scrollIntoView({block:"center"});
 };
+function closeReview(){
+  if(S.review && S.review.url) try{ URL.revokeObjectURL(S.review.url); }catch(e){}
+  S.review=null;
+  try{ loadProgress(); }catch(e){}
+  render();
+  const nxt=nextPending(); if(nxt) document.getElementById("cp-"+nxt.cp.id)?.scrollIntoView({block:"center"});
+}
 function showErr(msg){ const box=document.getElementById("err"); if(box) box.textContent=msg; else toast(msg); }
 
 // ---------- actions ----------
@@ -1114,10 +1184,35 @@ $app.addEventListener("click", e => {
     if(listAction(a, b.dataset.id)) return;
     if(a==="grant"){ Native.requestStorage(); }
     else if(a==="openPunch"){ goHome(); }
+    else if(a==="rvRetake"){
+      const rv=S.review; if(!rv || rv.uploading) return;
+      S.busy={section:rv.section, cp:rv.cp};
+      Native.takePhoto(S.variant, rv.section, rv.cp, S.vehicle, rv.path || "");
+    }
+    else if(a==="rvOk"){ closeReview(); }
+    else if(a==="rvNext"){
+      const rv=S.review; if(!rv || rv.uploading) return;
+      const nx=nextInSection(rv.section, rv.cp);
+      closeReview();
+      if(nx){
+        S.section=rv.section; S.busy={section:rv.section, cp:nx.id}; render();
+        Native.takePhoto(S.variant, rv.section, nx.id, S.vehicle, "");
+      } else {
+        const other = rv.section==="interior" ? "exterior" : "interior";
+        toast(rv.section==="interior" ? "Interior done" : "Exterior done");
+        const left = V()[other].some(c=>!((S.progress[other]||{})[c.id]||[]).length);
+        if(left){ S.section=other; render(); }
+      }
+    }
     else if(a==="pickRole"){
       try{ localStorage.setItem("mv-role", b.dataset.r); }catch(err){}
       if(b.dataset.r==="laptop"){ loadLaptop(); S.screen="laptop"; } else { S.screen="launch"; }
       render(); window.scrollTo(0,0);
+    }
+    else if(a==="lapSettings"){ S.settingsFrom="laptop"; S.screen="global"; S.confirm=null; render(); window.scrollTo(0,0); }
+    else if(a==="globalBack"){
+      if(S.settingsFrom==="laptop"){ S.settingsFrom=null; loadLaptop(); S.screen="laptop"; render(); window.scrollTo(0,0); }
+      else goHome();
     }
     else if(a==="toRole"){ S.menu=false; S.viewer=null; S.screen="role"; render(); window.scrollTo(0,0); }
     else if(a==="lapRefresh"){ loadLaptop(); S.lap.photos={}; render(); toast("Updated"); }

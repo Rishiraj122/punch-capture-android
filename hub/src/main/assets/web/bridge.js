@@ -44,6 +44,8 @@
     if (!f || !pending) return;
     gotFile = true;
     const p = pending; pending = null;
+    // show the photo right away (review screen) while it uploads
+    try{ window.onCaptured && window.onCaptured(URL.createObjectURL(f), {variant:p.vid, section:p.sec, checkpoint:p.cid, vehicle:p.veh}); }catch(e){}
     const fd = new FormData();
     fd.append("variant", p.vid); fd.append("section", p.sec); fd.append("checkpoint", p.cid);
     fd.append("vehicle", p.veh); fd.append("replace", p.replace || ""); fd.append("device", device);

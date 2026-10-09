@@ -543,24 +543,61 @@ public class Store {
         return new JSONObject().put("photos", out).put("total", ps.size());
     }
 
-    /** Streams a zip of one variant folder (or everything when vid is null), keeping the folder layout. */
+    /**
+     * Streams a zip with one flat folder per variant:
+     *   Punch_Pure/Punch_Pure_Calypso_Red_20261009_101512_exterior_orvm_left.jpg
+     *   Punch_Pure/photos.csv   (file, vehicle, color, section, checkpoint, time, quality)
+     * vid null = every variant.
+     */
     public void writeZip(String vid, OutputStream os) throws IOException {
-        File base = vid == null ? root : underRoot(vid);
+        List<String> vids = new ArrayList<>();
+        if (vid != null) vids.add(vid);
+        else {
+            File[] dirs = root.listFiles();
+            if (dirs != null) for (File d : dirs) if (d.isDirectory()) vids.add(d.getName());
+            Collections.sort(vids);
+        }
         ZipOutputStream z = new ZipOutputStream(os);
         z.setLevel(java.util.zip.Deflater.NO_COMPRESSION);   // photos are already compressed
-        for (File p : walkPhotos(base)) {
-            ZipEntry e = new ZipEntry("PunchCapture/" + relOf(p));
-            e.setTime(p.lastModified());
-            z.putNextEntry(e);
-            try (InputStream in = new FileInputStream(p)) { copy(in, z); }
-            z.closeEntry();
-        }
-        for (String extra : new String[]{"capture_log.csv", "vehicles.csv", "config.json", "photo_index.json", "results.json"}) {
-            File f = f(extra);
-            if (!f.exists()) continue;
-            z.putNextEntry(new ZipEntry("PunchCapture/" + extra));
-            try (InputStream in = new FileInputStream(f)) { copy(in, z); }
-            z.closeEntry();
+        SimpleDateFormat stampFmt = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US);
+        for (String v : vids) {
+            List<File> ps = walkPhotos(underRoot(v));
+            Collections.sort(ps, (a, b) -> Long.compare(a.lastModified(), b.lastModified()));
+            Set<String> used = new HashSet<>();
+            StringBuilder csv = new StringBuilder("file,vehicle,color,section,checkpoint,time,quality,checks\n");
+            for (File p : ps) {
+                File cdir = p.getParentFile(), sdir = cdir.getParentFile(), coldir = sdir.getParentFile();
+                String sec = sdir.getName(), color = coldir.getName(), cid = cidFromFolder(cdir.getName(), v);
+                Matcher m = STAMP_RE.matcher(p.getName());
+                // yyyyMMdd_HHmmss from the stored name (drop a same-second "_2" suffix), else the file time
+                String stamp = m.matches() ? m.group(2).substring(0, 15) : stampFmt.format(new Date(p.lastModified()));
+                String base = v + "_" + color + "_" + stamp + "_" + sec + "_" + cid, name = base + ".jpg";
+                int k = 2;
+                while (!used.add(name)) name = base + "_" + (k++) + ".jpg";
+                ZipEntry e = new ZipEntry(v + "/" + name);
+                e.setTime(p.lastModified());
+                z.putNextEntry(e);
+                try (InputStream in = new FileInputStream(p)) { copy(in, z); }
+                z.closeEntry();
+                JSONObject r = results.optJSONObject(relOf(p));
+                String checks = "";
+                if (r != null && r.optJSONArray("checks") != null) {
+                    JSONArray c = r.optJSONArray("checks");
+                    StringBuilder sb = new StringBuilder();
+                    for (int i = 0; i < c.length(); i++) { if (i > 0) sb.append("; "); sb.append(c.optString(i)); }
+                    checks = sb.toString();
+                }
+                int veh = vehicleOf(p);
+                csv.append(name).append(',').append(veh > 0 ? String.format(Locale.US, "V%03d", veh) : "").append(',')
+                   .append(color.replace('_', ' ')).append(',').append(sec).append(',').append(cid).append(',')
+                   .append(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(new Date(p.lastModified()))).append(',')
+                   .append(r == null ? "" : r.optString("status")).append(',').append(checks.replace(",", " ")).append('\n');
+            }
+            if (!ps.isEmpty()) {
+                z.putNextEntry(new ZipEntry(v + "/photos.csv"));
+                z.write(csv.toString().getBytes(StandardCharsets.UTF_8));
+                z.closeEntry();
+            }
         }
         z.finish();
         z.flush();
